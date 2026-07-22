@@ -1,0 +1,182 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject StudyMgt.Services.AppAuditLogService AuditLog
+@inject StudyMgt.Services.CentreAdminSession AdminSession
+@inject StudyMgt.Services.TutorPortalSession TutorSession
+@inject StudyMgt.Services.CarerPortalSession CarerSession
+@inject StudyMgt.Services.CouncilPortalSession CouncilSession
+
+<div class="page @(isCompactMode ? "compact-mode" : string.Empty)">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a class="top-brand" href="https://www.apexeducationservices.co.uk/" target="_blank" rel="noopener noreferrer">
+                <img src="/images/apex-logo.webp" alt="Apex Education Services logo" class="apex-top-logo" />
+                <span>Apex Education Services</span>
+            </a>
+            <div class="top-actions">
+                <button class="btn btn-link p-0" type="button" @onclick="ToggleCompactMode">
+                    @(isCompactMode ? "Normal View" : "Compact View")
+                </button>
+                <a href="https://www.apexeducationservices.co.uk/" target="_blank" rel="noopener noreferrer">Visit Main Site</a>
+            </div>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private const int InactivityTimeoutMilliseconds = 5 * 60 * 1000;
+    private bool isCompactMode;
+    private DotNetObjectReference<MainLayout>? inactivityTrackerRef;
+    private bool timeoutTriggered;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        QueuePageVisitLog(Navigation.Uri);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        inactivityTrackerRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("screenInactivity.register", inactivityTrackerRef, InactivityTimeoutMilliseconds);
+    }
+
+    private void ToggleCompactMode()
+    {
+        isCompactMode = !isCompactMode;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        QueuePageVisitLog(e.Location);
+    }
+
+    private void QueuePageVisitLog(string location)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await LogPageVisitAsync(location);
+            }
+            catch
+            {
+                // Navigation logging is best-effort and should never break rendering.
+            }
+        });
+    }
+
+    private async Task LogPageVisitAsync(string absoluteUri)
+    {
+        var uri = new Uri(absoluteUri);
+        var (actorRole, actorUsername) = ResolveActor();
+
+        await AuditLog.LogAsync(
+            eventType: "PageView",
+            action: "Navigate",
+            pagePath: uri.AbsolutePath,
+            actorRole: actorRole,
+            actorUsername: actorUsername,
+            success: true,
+            details: $"Navigated to {uri.AbsolutePath}{uri.Query}");
+    }
+
+    private (string Role, string Username) ResolveActor()
+    {
+        if (AdminSession.IsAuthenticated)
+        {
+            return ("CentreAdmin", AdminSession.Username ?? "admin");
+        }
+
+        if (TutorSession.IsAuthenticated)
+        {
+            return ("Tutor", TutorSession.Username ?? TutorSession.TutorName ?? "tutor");
+        }
+
+        if (CarerSession.IsAuthenticated)
+        {
+            return ("Carer", CarerSession.Username ?? CarerSession.CarerName ?? "carer");
+        }
+
+        if (CouncilSession.IsAuthenticated)
+        {
+            return ("CouncilRepresentative", CouncilSession.Username ?? CouncilSession.DisplayName ?? "council");
+        }
+
+        return ("Anonymous", "anonymous");
+    }
+
+    [JSInvokable]
+    public async Task HandleInactivityTimeout()
+    {
+        if (timeoutTriggered)
+        {
+            return;
+        }
+
+        timeoutTriggered = true;
+
+        var hadActiveSession = AdminSession.IsAuthenticated
+            || TutorSession.IsAuthenticated
+            || CarerSession.IsAuthenticated
+            || CouncilSession.IsAuthenticated;
+
+        AdminSession.SignOut();
+        TutorSession.SignOut();
+        CarerSession.SignOut();
+        CouncilSession.SignOut();
+
+        try
+        {
+            if (hadActiveSession)
+            {
+                await AuditLog.LogAsync(
+                    eventType: "Security",
+                    action: "ScreenTimeout",
+                    pagePath: new Uri(Navigation.Uri).AbsolutePath,
+                    actorRole: "System",
+                    actorUsername: "inactivity-timeout",
+                    success: true,
+                    details: "User was signed out after 5 minutes of inactivity.");
+            }
+        }
+        catch
+        {
+            // Timeout logging is best effort.
+        }
+
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        if (inactivityTrackerRef is not null)
+        {
+            _ = JS.InvokeVoidAsync("screenInactivity.unregister");
+            inactivityTrackerRef.Dispose();
+            inactivityTrackerRef = null;
+        }
+    }
+}

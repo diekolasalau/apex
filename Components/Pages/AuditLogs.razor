@@ -1,0 +1,271 @@
+@page "/audit-logs"
+@using StudyMgt.Data.Entities
+@using StudyMgt.Services
+@inject AppAuditLogService AuditLogService
+@inject CentreAdminSession AdminSession
+@inject NavigationManager Navigation
+
+<PageTitle>Audit Logs</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1>Audit Logs</h1>
+            <p class="text-muted mb-0">Review application activity, security events, and business actions.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="BackToAdmin">Back to Dashboard</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">From (UTC)</label>
+                    <InputDate class="form-control" @bind-Value="fromDate" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">To (UTC)</label>
+                    <InputDate class="form-control" @bind-Value="toDate" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Role</label>
+                    <InputSelect class="form-select" @bind-Value="actorRole">
+                        <option value="">All</option>
+                        <option value="CentreAdmin">CentreAdmin</option>
+                        <option value="Tutor">Tutor</option>
+                        <option value="Carer">Carer</option>
+                        <option value="Anonymous">Anonymous</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <InputSelect class="form-select" @bind-Value="successFilter">
+                        <option value="all">All</option>
+                        <option value="success">Success</option>
+                        <option value="failed">Failed</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Max Rows</label>
+                    <InputNumber class="form-control" @bind-Value="take" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Action Contains</label>
+                    <InputText class="form-control" @bind-Value="actionContains" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Page Path Contains</label>
+                    <InputText class="form-control" @bind-Value="pagePathContains" />
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="LoadLogsAsync">Apply Filters</button>
+                    <button class="btn btn-outline-secondary" @onclick="ResetFilters">Reset</button>
+                    <button class="btn btn-outline-secondary" @onclick="DownloadGlobalPdf" disabled="@(logs.Count == 0)">Export PDF</button>
+                    <button class="btn btn-outline-secondary" @onclick="DownloadGlobalExcel" disabled="@(logs.Count == 0)">Export Excel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>UTC Time</th>
+                    <th>Event Type</th>
+                    <th>Action</th>
+                    <th>Role</th>
+                    <th>User</th>
+                    <th>Page</th>
+                    <th>Entity</th>
+                    <th>Success</th>
+                    <th>Details</th>
+                    <th>Export</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (logs.Count == 0)
+                {
+                    <tr>
+                        <td colspan="10" class="text-center text-muted">No audit logs found for current filters.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in logs)
+                    {
+                        <tr>
+                            <td>@item.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@item.EventType</td>
+                            <td>@item.Action</td>
+                            <td>@item.ActorRole</td>
+                            <td>@item.ActorUsername</td>
+                            <td>@item.PagePath</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.EntityType) ? "" : $"{item.EntityType}:{item.EntityId}")</td>
+                            <td>
+                                @if (item.Success)
+                                {
+                                    <span class="badge bg-success">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">No</span>
+                                }
+                            </td>
+                            <td>@item.Details</td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadRowPdf(item.Id)">PDF</button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadRowExcel(item.Id)">Excel</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<ApplicationAuditLogEntity> logs = new();
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private string? actorRole;
+    private string successFilter = "all";
+    private string? actionContains;
+    private string? pagePathContains;
+    private int take = 200;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/centre-administrators");
+            return;
+        }
+
+        await LoadLogsAsync();
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            bool? success = successFilter switch
+            {
+                "success" => true,
+                "failed" => false,
+                _ => (bool?)null
+            };
+
+            var fromUtc = fromDate?.Date;
+            var toUtc = toDate?.Date.AddDays(1).AddSeconds(-1);
+
+            logs = await AuditLogService.GetLogsAsync(
+                fromUtc: fromUtc,
+                toUtc: toUtc,
+                actorRole: string.IsNullOrWhiteSpace(actorRole) ? null : actorRole,
+                action: actionContains,
+                pagePath: pagePathContains,
+                success: success,
+                take: take);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load audit logs: {ex.Message}";
+        }
+    }
+
+    private async Task ResetFilters()
+    {
+        fromDate = null;
+        toDate = null;
+        actorRole = null;
+        successFilter = "all";
+        actionContains = null;
+        pagePathContains = null;
+        take = 200;
+        await LoadLogsAsync();
+    }
+
+    private void BackToAdmin()
+    {
+        Navigation.NavigateTo("/centre-administrators");
+    }
+
+    private void DownloadGlobalPdf()
+    {
+        Navigation.NavigateTo($"/api/audit-logs/export/pdf{BuildExportQueryString()}", forceLoad: true);
+    }
+
+    private void DownloadGlobalExcel()
+    {
+        Navigation.NavigateTo($"/api/audit-logs/export/excel{BuildExportQueryString()}", forceLoad: true);
+    }
+
+    private void DownloadRowPdf(long id)
+    {
+        Navigation.NavigateTo($"/api/audit-logs/{id}/pdf", forceLoad: true);
+    }
+
+    private void DownloadRowExcel(long id)
+    {
+        Navigation.NavigateTo($"/api/audit-logs/{id}/excel", forceLoad: true);
+    }
+
+    private string BuildExportQueryString()
+    {
+        var queryParts = new List<string>();
+
+        var fromUtc = fromDate?.Date;
+        var toUtc = toDate?.Date.AddDays(1).AddSeconds(-1);
+        var success = successFilter switch
+        {
+            "success" => true,
+            "failed" => false,
+            _ => (bool?)null
+        };
+
+        if (fromUtc.HasValue)
+        {
+            queryParts.Add($"fromUtc={Uri.EscapeDataString(fromUtc.Value.ToString("O"))}");
+        }
+
+        if (toUtc.HasValue)
+        {
+            queryParts.Add($"toUtc={Uri.EscapeDataString(toUtc.Value.ToString("O"))}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(actorRole))
+        {
+            queryParts.Add($"actorRole={Uri.EscapeDataString(actorRole)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(actionContains))
+        {
+            queryParts.Add($"action={Uri.EscapeDataString(actionContains)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(pagePathContains))
+        {
+            queryParts.Add($"pagePath={Uri.EscapeDataString(pagePathContains)}");
+        }
+
+        if (success.HasValue)
+        {
+            queryParts.Add($"success={success.Value.ToString().ToLowerInvariant()}");
+        }
+
+        queryParts.Add($"take={take}");
+
+        return queryParts.Count == 0 ? string.Empty : $"?{string.Join("&", queryParts)}";
+    }
+}

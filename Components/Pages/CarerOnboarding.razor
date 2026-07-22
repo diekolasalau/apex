@@ -1,0 +1,527 @@
+@page "/carer-onboarding"
+@page "/carer-onboarding/{StudentId}"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Json
+@using StudyMgt.Services
+@inject IJSRuntime JS
+
+<PageTitle>Carer Onboarding - Study Management</PageTitle>
+
+<div class="container-fluid mt-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- Header -->
+            <h1 class="mb-2">Parent/Guardian Onboarding</h1>
+            <p class="text-muted mb-4">Complete this form to register as a parent/guardian for your SEN student</p>
+
+            <FormStatusAlert
+                Type="success"
+                Title="Onboarding Submitted Successfully"
+                Message="@successMessage"
+                OnClose="ClearMessages" />
+
+            <FormStatusAlert
+                Type="error"
+                Title="Submission Error"
+                Message="@errorMessage"
+                OnClose="ClearMessages" />
+
+            <!-- Privacy Notice Section -->
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <strong>Privacy Notice & Data Protection</strong>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="privacyAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#privacyDetail">
+                                    How we use your data (UK GDPR & Data Protection Act 2018)
+                                </button>
+                            </h2>
+                            <div id="privacyDetail" class="accordion-collapse collapse" data-bs-parent="#privacyAccordion">
+                                <div class="accordion-body small">
+                                    <p><strong>Lawful Basis:</strong> Processing is based on our legitimate interest to manage student education and safeguarding, and your consent as provided below.</p>
+                                    <p><strong>What we collect:</strong></p>
+                                    <ul>
+                                        <li>Your name, contact details, and relationship to the student</li>
+                                        <li>Medical, dietary, and accessibility information necessary for student welfare</li>
+                                        <li>Parental responsibility verification and safeguarding declarations</li>
+                                        <li>Communication preferences and authorized pickup information</li>
+                                    </ul>
+                                    <p><strong>Who we share with:</strong> Data is shared with school staff and authorized personnel on a need-to-know basis for safeguarding and educational purposes only.</p>
+                                    <p><strong>Retention:</strong> Your data is retained for the duration of your child's enrollment plus 6 years, in accordance with education sector guidance.</p>
+                                    <p><strong>Your rights:</strong> You have the right to access, correct, or delete your data (subject to legal obligations). Contact us to exercise these rights.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Form -->
+            <EditForm Model="@model" OnValidSubmit="@HandleSubmit" FormName="CarerOnboardingForm" class="needs-validation">
+                <DataAnnotationsValidator />
+
+                <!-- Privacy Notice Acknowledgement -->
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <strong>Privacy Notice Acknowledgement</strong>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mt-3">
+                                <input id="confirmPrivacyNotice" type="checkbox" class="form-check-input" @bind="privacyAcknowledged" @bind:event="oninput" />
+                            <label class="form-check-label" for="confirmPrivacyNotice">
+                                I confirm I have read and understood the privacy notice above <span class="text-danger">*</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 1: Personal Information -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Your Personal Information</legend>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="firstName" class="form-label">First Name <span class="text-danger">*</span></label>
+                            <InputText id="firstName" @bind-Value="@model.FirstName" class="form-control" placeholder="Enter your first name" />
+                            <ValidationMessage For="@(() => model.FirstName)" class="invalid-feedback d-block" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="lastName" class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <InputText id="lastName" @bind-Value="@model.LastName" class="form-control" placeholder="Enter your last name" />
+                            <ValidationMessage For="@(() => model.LastName)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                            <InputText id="email" type="email" @bind-Value="@model.Email" class="form-control" placeholder="your.email@example.com" />
+                            <ValidationMessage For="@(() => model.Email)" class="invalid-feedback d-block" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                            <InputText id="phone" type="tel" @bind-Value="@model.PhoneNumber" class="form-control" placeholder="01234 567890" />
+                            <ValidationMessage For="@(() => model.PhoneNumber)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-12">
+                            <label for="address" class="form-label">Residential Address <span class="text-danger">*</span></label>
+                            <InputText id="address" @bind-Value="@model.Address" class="form-control" placeholder="Full address" />
+                            <ValidationMessage For="@(() => model.Address)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Section 2: Relationship to Student -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Relationship to Student</legend>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="studentName" class="form-label">Student's Full Name <span class="text-danger">*</span></label>
+                            <InputText id="studentName" @bind-Value="@model.StudentName" class="form-control" placeholder="Student's full name" />
+                            <ValidationMessage For="@(() => model.StudentName)" class="invalid-feedback d-block" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="relationship" class="form-label">Your Relationship <span class="text-danger">*</span></label>
+                            <InputSelect id="relationship" @bind-Value="@model.Relationship" class="form-select">
+                                <option value="">-- Please Select --</option>
+                                <option value="parent">Parent/Guardian</option>
+                                <option value="primary-carer">Primary Carer</option>
+                                <option value="secondary-carer">Secondary Carer</option>
+                                <option value="emergency-contact">Emergency Contact</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => model.Relationship)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label for="studentDOB" class="form-label">Student Date of Birth <span class="text-danger">*</span></label>
+                            <InputDate id="studentDOB" @bind-Value="@model.StudentDateOfBirth" class="form-control" />
+                            <ValidationMessage For="@(() => model.StudentDateOfBirth)" class="invalid-feedback d-block" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="ehcpStatus" class="form-label">EHCP Status <span class="text-muted">(if applicable)</span></label>
+                            <InputSelect id="ehcpStatus" @bind-Value="@model.EHCPStatus" class="form-select">
+                                <option value="">-- Select --</option>
+                                <option value="has-ehcp">Has Education, Health & Care Plan</option>
+                                <option value="ehcp-pending">EHCP Assessment Pending</option>
+                                <option value="support-plan">Has Support Plan</option>
+                                <option value="none">No EHCP or Plan</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Section 3: Parental Responsibility Verification -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Parental Responsibility Declaration</legend>
+                    <p class="text-muted small">In accordance with the Children Act 1989 & 2004</p>
+
+                    <div class="form-check mb-3">
+                        <input id="parentalResponsibility" type="checkbox" class="form-check-input" @bind="parentalResponsible" @bind:event="oninput" />
+                        <label class="form-check-label" for="parentalResponsibility">
+                            I declare that I have parental responsibility for the student named above and am authorized to provide information and make decisions on their behalf <span class="text-danger">*</span>
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="noCourtOrders" class="form-check-input"
+                            checked="@noRestrictiveOrders"
+                            @onchange="@((ChangeEventArgs e) => { noRestrictiveOrders = (bool)e.Value!; model.NoRestrictiveOrders = (bool)e.Value!; })" />
+                        <label class="form-check-label" for="noCourtOrders">
+                            I confirm there are no court orders or restrictions that would prevent me from engaging with the school regarding this student's care and education
+                        </label>
+                    </div>
+                </fieldset>
+
+                <!-- Section 4: Contact & Communication Preferences -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Communication & Medical Information</legend>
+
+                    <div class="mb-3">
+                        <label for="preferredContactMethod" class="form-label">Preferred Contact Method <span class="text-danger">*</span></label>
+                        <InputSelect id="preferredContactMethod" class="form-select" @bind-Value="@model.PreferredContactMethod">
+                            <option value="">-- Please select --</option>
+                            <option value="phone">Phone</option>
+                            <option value="email">Email</option>
+                            <option value="both">Both</option>
+                        </InputSelect>
+                        <ValidationMessage For="@(() => model.PreferredContactMethod)" class="invalid-feedback d-block" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="medicalInfo" class="form-label">Medical/Dietary/Accessibility Information</label>
+                        <InputTextArea id="medicalInfo" @bind-Value="@model.MedicalAndAccessibilityInfo" 
+                            class="form-control" rows="4" 
+                            placeholder="Please provide relevant medical conditions, dietary requirements, allergies, or accessibility needs" />
+                        <small class="form-text text-muted">This help us provide appropriate care and support</small>
+                    </div>
+                </fieldset>
+
+                <!-- Section 5: Emergency Contact -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Emergency Contact Details</legend>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="emergencyName" class="form-label">Emergency Contact Name <span class="text-danger">*</span></label>
+                            <InputText id="emergencyName" @bind-Value="@model.EmergencyContactName" class="form-control" />
+                            <ValidationMessage For="@(() => model.EmergencyContactName)" class="invalid-feedback d-block" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="emergencyPhone" class="form-label">Emergency Contact Number <span class="text-danger">*</span></label>
+                            <InputText id="emergencyPhone" type="tel" @bind-Value="@model.EmergencyContactPhone" class="form-control" />
+                            <ValidationMessage For="@(() => model.EmergencyContactPhone)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-12">
+                            <label for="emergencyRelationship" class="form-label">Relationship to Student <span class="text-danger">*</span></label>
+                            <InputText id="emergencyRelationship" @bind-Value="@model.EmergencyContactRelationship" class="form-control" />
+                            <ValidationMessage For="@(() => model.EmergencyContactRelationship)" class="invalid-feedback d-block" />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Section 6: Consent & Data Use -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Data Processing Consents</legend>
+                    <p class="text-muted small">Please indicate your preferences below. These consents can be withdrawn at any time.</p>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="consentDaily" class="form-check-input"
+                            checked="@dailyUpdatesConsent"
+                            @onchange="@((ChangeEventArgs e) => { dailyUpdatesConsent = (bool)e.Value!; model.ConsentsProvided.DailyUpdatesConsent = (bool)e.Value!; })" />
+                        <label class="form-check-label" for="consentDaily">
+                            I consent to receive daily updates about my child's progress, incidents, and needs
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="consentPhotos" class="form-check-input"
+                            checked="@photosVideosConsent"
+                            @onchange="@((ChangeEventArgs e) => { photosVideosConsent = (bool)e.Value!; model.ConsentsProvided.PhotosVideosConsent = (bool)e.Value!; })" />
+                        <label class="form-check-label" for="consentPhotos">
+                            I consent to my child appearing in internal school photographs/videos for record-keeping purposes (not for public use)
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="consentThirdParty" class="form-check-input"
+                            checked="@thirdPartySharingConsent"
+                            @onchange="@((ChangeEventArgs e) => { thirdPartySharingConsent = (bool)e.Value!; model.ConsentsProvided.ThirdPartySharingConsent = (bool)e.Value!; })" />
+                        <label class="form-check-label" for="consentThirdParty">
+                            I consent to sharing anonymized data with health/therapy professionals involved in my child's care
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input id="consentLegitInt" type="checkbox" class="form-check-input" @bind="legitIntConsent" @bind:event="oninput" />
+                        <label class="form-check-label" for="consentLegitInt">
+                            <strong>I consent to process my data for legitimate school interests including safeguarding, education provision, and statutory compliance <span class="text-danger">*</span></strong>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <!-- Section 7: Authorization & Verification -->
+                <fieldset class="mb-4">
+                    <legend class="fs-5 fw-bold mb-3 pb-2 border-bottom">Authorization & Verification</legend>
+
+                    <div class="form-check mb-3">
+                        <input id="confirmAccurate" type="checkbox" class="form-check-input" @bind="confirmAccuracy" @bind:event="oninput" />
+                        <label class="form-check-label" for="confirmAccurate">
+                            I confirm that the information provided above is accurate and truthful <span class="text-danger">*</span>
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input id="confirmTerms" type="checkbox" class="form-check-input" @bind="termsAccepted" @bind:event="oninput" />
+                        <label class="form-check-label" for="confirmTerms">
+                            I accept the school's safeguarding policy and agree to abide by all school policies and procedures <span class="text-danger">*</span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <!-- Form Actions -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-between mb-4">
+                    <button type="reset" class="btn btn-outline-secondary">Clear Form</button>
+                    <button type="button" class="btn btn-outline-primary" @onclick="SaveDraftAsync" disabled="@isSubmitting">
+                        Save and Continue Later
+                    </button>
+                    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span>
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Processing...
+                            </span>
+                        }
+                        else
+                        {
+                            <span>Complete Onboarding</span>
+                        }
+                    </button>
+                </div>
+
+                <!-- Summary for Review -->
+                <div class="alert alert-info small">
+                    <strong>Before you submit:</strong> Please review all information carefully. You can download a copy of your responses and our privacy policy after submission.
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string DraftStorageKey = "onboarding:carer:draft";
+
+    [Inject]
+    private CarerOnboardingService CarerService { get; set; } = default!;
+
+    [Parameter]
+    public string? StudentId { get; set; }
+
+    private CarerOnboardingData model = new();
+    private string? successMessage;
+    private string? errorMessage;
+    private bool isSubmitting = false;
+
+    // Checkbox state variables to track model synchronization
+    private bool privacyAcknowledged = false;
+    private bool parentalResponsible = false;
+    private bool noRestrictiveOrders = false;
+    private bool dailyUpdatesConsent = false;
+    private bool photosVideosConsent = false;
+    private bool thirdPartySharingConsent = false;
+    private bool legitIntConsent = false;
+    private bool confirmAccuracy = false;
+    private bool termsAccepted = false;
+
+    protected override void OnInitialized()
+    {
+        // Pre-fill StudentId if provided in route
+        if (!string.IsNullOrEmpty(StudentId))
+        {
+            // This could be populated from a database lookup
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await RestoreDraftAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            SyncRequiredDeclarationsToModel();
+
+            var missingRequiredDeclarations = GetMissingRequiredDeclarations();
+            if (missingRequiredDeclarations.Count > 0)
+            {
+                errorMessage = BuildMissingRequirementsMessage(missingRequiredDeclarations);
+                return;
+            }
+
+            // Save to service
+            var result = await CarerService.SaveOnboardingAsync(model);
+
+            if (result.Success)
+            {
+                successMessage = $"Thank you! Your onboarding has been submitted successfully with Carer ID: {result.CarerId}. We'll review your information shortly.";
+                model = new();
+                ResetCheckboxes();
+                await JS.InvokeVoidAsync("onboardingDrafts.clear", DraftStorageKey);
+            }
+            else
+            {
+                errorMessage = result.Message ?? "An error occurred while submitting your onboarding.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void ResetCheckboxes()
+    {
+        privacyAcknowledged = false;
+        parentalResponsible = false;
+        noRestrictiveOrders = false;
+        dailyUpdatesConsent = false;
+        photosVideosConsent = false;
+        thirdPartySharingConsent = false;
+        legitIntConsent = false;
+        confirmAccuracy = false;
+        termsAccepted = false;
+    }
+
+    private void SyncRequiredDeclarationsToModel()
+    {
+        model.ConsentsProvided.PrivacyNoticeAcknowledged = privacyAcknowledged;
+        model.HasParentalResponsibility = parentalResponsible;
+        model.ConsentsProvided.LegitimateInterestConsent = legitIntConsent;
+        model.ConfirmAccuracyAndTruth = confirmAccuracy;
+        model.ConsentsProvided.TermsAccepted = termsAccepted;
+    }
+
+    private void SyncCheckboxesFromModel()
+    {
+        privacyAcknowledged = model.ConsentsProvided.PrivacyNoticeAcknowledged;
+        parentalResponsible = model.HasParentalResponsibility;
+        noRestrictiveOrders = model.NoRestrictiveOrders;
+        dailyUpdatesConsent = model.ConsentsProvided.DailyUpdatesConsent;
+        photosVideosConsent = model.ConsentsProvided.PhotosVideosConsent;
+        thirdPartySharingConsent = model.ConsentsProvided.ThirdPartySharingConsent;
+        legitIntConsent = model.ConsentsProvided.LegitimateInterestConsent;
+        confirmAccuracy = model.ConfirmAccuracyAndTruth;
+        termsAccepted = model.ConsentsProvided.TermsAccepted;
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        try
+        {
+            ClearMessages();
+            SyncRequiredDeclarationsToModel();
+
+            var payload = JsonSerializer.Serialize(model);
+            await JS.InvokeVoidAsync("onboardingDrafts.save", DraftStorageKey, payload);
+            successMessage = "Draft saved. You can continue this onboarding later on this device.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving draft: {ex.Message}";
+        }
+    }
+
+    private async Task RestoreDraftAsync()
+    {
+        try
+        {
+            var payload = await JS.InvokeAsync<string?>("onboardingDrafts.load", DraftStorageKey);
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return;
+            }
+
+            var restored = JsonSerializer.Deserialize<CarerOnboardingData>(payload);
+            if (restored is null)
+            {
+                return;
+            }
+
+            model = restored;
+            SyncCheckboxesFromModel();
+            successMessage = "Saved draft restored. You can continue where you left off.";
+            StateHasChanged();
+        }
+        catch
+        {
+            // Ignore draft restoration issues to avoid blocking form usage.
+        }
+    }
+
+    private List<string> GetMissingRequiredDeclarations()
+    {
+        var missing = new List<string>();
+
+        if (!model.ConsentsProvided.PrivacyNoticeAcknowledged)
+            missing.Add("Privacy notice acknowledgement");
+
+        if (!model.HasParentalResponsibility)
+            missing.Add("Parental responsibility declaration");
+
+        if (!model.ConsentsProvided.LegitimateInterestConsent)
+            missing.Add("Legitimate interest data processing consent");
+
+        if (!model.ConsentsProvided.TermsAccepted)
+            missing.Add("Safeguarding policy acceptance");
+
+        if (!model.ConfirmAccuracyAndTruth)
+            missing.Add("Accuracy and truth declaration");
+
+        return missing;
+    }
+
+    private static string BuildMissingRequirementsMessage(List<string> missingRequiredDeclarations)
+    {
+        var messageBuilder = new StringBuilder("Please complete the following required declarations: ");
+        messageBuilder.Append(string.Join(", ", missingRequiredDeclarations));
+        messageBuilder.Append('.');
+        return messageBuilder.ToString();
+    }
+}

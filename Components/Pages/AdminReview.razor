@@ -1,0 +1,1186 @@
+@page "/admin-review"
+@using StudyMgt.Services
+@inject StudentOnboardingService StudentService
+@inject TutorOnboardingService TutorService
+@inject CarerOnboardingService CarerService
+@inject CentreAdminSession AdminSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Administrator Review</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Administrator Review</h1>
+            <p class="text-muted mb-0">Review pending submissions for students, tutors, and carers, and assign approved tutors to students.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="NavigateToDashboard">Back to Dashboard</button>
+    </div>
+
+    <FormStatusAlert
+        Type="success"
+        Title="Success"
+        Message="@successMessage"
+        OnClose="ClearMessages" />
+
+    <FormStatusAlert
+        Type="error"
+        Title="Error"
+        Message="@errorMessage"
+        OnClose="ClearMessages" />
+
+    <section class="mb-5">
+        <h2>Student Submissions</h2>
+        @if (students.Count == 0)
+        {
+            <div class="alert alert-secondary">No student submissions are available for review.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Student</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                            <th>Assigned Tutor(s)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var student in PagedPendingStudents)
+                        {
+                            <tr>
+                                <td>@student.Id</td>
+                                <td>@student.FirstName @student.LastName</td>
+                                <td>@student.EmergencyContactEmail</td>
+                                <td>@student.Status</td>
+                                <td>@student.SubmittedDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@(string.IsNullOrEmpty(student.AssignedTutorName) ? "Unassigned" : student.AssignedTutorName)</td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ToggleStudentSubmissionDetail(student.Id)">
+                                            @(selectedStudentSubmissionDetailId == student.Id ? "Hide Details" : "View Details")
+                                        </button>
+                                        <button class="btn btn-sm btn-success" @onclick="() => ApproveStudent(student.Id)">Approve</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (SelectedStudentSubmission != null)
+            {
+                <div class="border rounded p-3 bg-white mb-3">
+                    <h5 class="mb-3">Student Submission Details</h5>
+                    <div class="row gx-3 gy-2">
+                        <div class="col-md-4"><strong>Name:</strong> @SelectedStudentSubmission.FirstName @SelectedStudentSubmission.LastName</div>
+                        <div class="col-md-4"><strong>Status:</strong> @SelectedStudentSubmission.Status</div>
+                        <div class="col-md-4"><strong>Submitted:</strong> @SelectedStudentSubmission.SubmittedDate.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                        <div class="col-md-4"><strong>Emergency Email:</strong> @DisplayValue(SelectedStudentSubmission.EmergencyContactEmail)</div>
+                        <div class="col-md-4"><strong>Emergency Contact:</strong> @DisplayValue(SelectedStudentSubmission.EmergencyContactName)</div>
+                        <div class="col-md-4"><strong>Emergency Phone:</strong> @DisplayValue(SelectedStudentSubmission.EmergencyContactPhone)</div>
+                        <div class="col-md-4"><strong>Relationship:</strong> @DisplayValue(SelectedStudentSubmission.RelationshipToStudent)</div>
+                        <div class="col-md-4"><strong>SEN Indicators:</strong> @DisplayValue(SelectedStudentSubmission.SENIndicators)</div>
+                        <div class="col-md-4"><strong>EHCP Status:</strong> @DisplayValue(SelectedStudentSubmission.EHCPStatus)</div>
+                    </div>
+
+                    <div class="mt-3 border-top pt-3">
+                        <label class="form-label">Decision Reason</label>
+                        <InputTextArea class="form-control"
+                                       @bind-Value="studentReviewReason"
+                                       rows="3"
+                                       placeholder="Add reason for decline or rework. Optional for approval." />
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-success" @onclick="() => ApproveStudent(SelectedStudentSubmission.Id)">Approve</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeclineStudent(SelectedStudentSubmission.Id)">Decline</button>
+                            <button class="btn btn-sm btn-warning" @onclick="() => RequestStudentRework(SelectedStudentSubmission.Id)">Rework</button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <small class="text-muted">
+                    @if (students.Any())
+                    {
+                        <span>Showing @PendingStudentsStartIndex-@PendingStudentsEndIndex of @students.Count students</span>
+                    }
+                    else
+                    {
+                        <span>No pending students found.</span>
+                    }
+                </small>
+                <div class="btn-group" role="group" aria-label="Pending students paging">
+                    <button class="btn btn-outline-secondary" @onclick="PreviousPendingStudentsPage" disabled="@(pendingStudentsPageIndex <= 1)">Previous</button>
+                    <button class="btn btn-outline-secondary" disabled>Page @pendingStudentsPageIndex of @TotalPendingStudentPages</button>
+                    <button class="btn btn-outline-secondary" @onclick="NextPendingStudentsPage" disabled="@(pendingStudentsPageIndex >= TotalPendingStudentPages)">Next</button>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="mb-5">
+        <h2>Approved Student Assignment</h2>
+        @if (approvedStudents.Count == 0)
+        {
+            <div class="alert alert-secondary">No approved students are available for tutor assignment.</div>
+        }
+        else
+        {
+            <div class="row gx-3 gy-2 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Assignment Filter</label>
+                    <InputSelect class="form-select" @bind-Value="assignmentFilter" @bind-Value:after="OnAssignmentFilterChanged">
+                        <option value="all">All approved students</option>
+                        <option value="unassigned">Unassigned only</option>
+                        <option value="assigned">Assigned only</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-8 text-md-end">
+                    <span class="badge bg-success me-2">Approved Students: @approvedStudents.Count</span>
+                    <span class="badge bg-warning text-dark me-2">Unassigned: @approvedStudents.Count(s => string.IsNullOrWhiteSpace(s.AssignedTutorName))</span>
+                    <span class="badge bg-primary">Assigned: @approvedStudents.Count(s => !string.IsNullOrWhiteSpace(s.AssignedTutorName))</span>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Student</th>
+                            <th>Status</th>
+                            <th>Current Tutor(s)</th>
+                            <th>Assignment</th>
+                            <th>View</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var student in PagedApprovedStudents)
+                        {
+                            <tr>
+                                <td>@student.Id</td>
+                                <td>@student.FirstName @student.LastName</td>
+                                <td><span class="badge bg-success">@student.Status</span></td>
+                                <td>@(string.IsNullOrWhiteSpace(student.AssignedTutorName) ? "Unassigned" : student.AssignedTutorName)</td>
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(student.AssignedTutorName))
+                                    {
+                                        <span class="badge bg-warning text-dark">Needs Tutor</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">Assigned</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => SelectStudentForAssignmentAsync(student.Id)">
+                                        View Details
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <small class="text-muted">
+                    @if (FilteredApprovedStudents.Any())
+                    {
+                        <span>Showing @ApprovedStudentsStartIndex-@ApprovedStudentsEndIndex of @FilteredApprovedStudents.Count() students</span>
+                    }
+                    else
+                    {
+                        <span>No students match the current filter.</span>
+                    }
+                </small>
+                <div class="btn-group" role="group" aria-label="Approved students paging">
+                    <button class="btn btn-outline-secondary" @onclick="PreviousApprovedStudentsPage" disabled="@(approvedStudentsPageIndex <= 1)">Previous</button>
+                    <button class="btn btn-outline-secondary" disabled>Page @approvedStudentsPageIndex of @TotalApprovedStudentPages</button>
+                    <button class="btn btn-outline-secondary" @onclick="NextApprovedStudentsPage" disabled="@(approvedStudentsPageIndex >= TotalApprovedStudentPages)">Next</button>
+                </div>
+            </div>
+        }
+    </section>
+
+    @if (SelectedStudent != null)
+    {
+        <section class="mb-5 p-4 border rounded shadow-sm bg-white">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <h3 class="mb-0">Student Detail: @SelectedStudent.FirstName @SelectedStudent.LastName</h3>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CloseStudentDetail">
+                    Close
+                </button>
+            </div>
+            <div class="row gx-3 gy-2 mb-3">
+                <div class="col-md-3"><strong>ID:</strong> @SelectedStudent.Id</div>
+                <div class="col-md-3"><strong>Status:</strong> @SelectedStudent.Status</div>
+                <div class="col-md-6"><strong>Current Tutor(s):</strong> @(string.IsNullOrWhiteSpace(SelectedStudent.AssignedTutorName) ? "Unassigned" : SelectedStudent.AssignedTutorName)</div>
+            </div>
+            <p class="text-muted">Use this view to review the student and manage tutor assignment. Students may have multiple tutors.</p>
+
+            @if (approvedTutors.Count == 0)
+            {
+                <div class="alert alert-warning">There are no approved tutors available for assignment yet.</div>
+            }
+            else
+            {
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 70px;">Select</th>
+                                <th>Tutor</th>
+                                <th>Courses To Be Taken</th>
+                                <th>Days Of Week</th>
+                                <th>Time</th>
+                                <th>DBS Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tutor in approvedTutors.OrderBy(t => t.FirstName).ThenBy(t => t.LastName))
+                            {
+                                var isSelected = selectedTutorIds.Contains(tutor.Id);
+                                <tr>
+                                    <td>
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@isSelected"
+                                               @onchange="(e => OnTutorSelectionChanged(tutor.Id, e))" />
+                                    </td>
+                                    <td>@tutor.FirstName @tutor.LastName</td>
+                                    <td>
+                                        <input class="form-control form-control-sm"
+                                               value="@GetTutorCoursesDraft(tutor.Id)"
+                                               placeholder="e.g. Maths, English"
+                                               @oninput="(e => OnTutorCoursesChanged(tutor.Id, e.Value?.ToString()))" />
+                                    </td>
+                                    <td>
+                                        <details class="border rounded p-1">
+                                            <summary class="small">@GetTutorDaysSummary(tutor.Id)</summary>
+                                            <div class="d-flex flex-wrap gap-2 mt-2 px-1 pb-1">
+                                                @foreach (var day in WeekdayOptions)
+                                                {
+                                                    <div class="form-check form-check-inline m-0">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@IsTutorDaySelected(tutor.Id, day)"
+                                                               @onchange="(e => OnTutorDayToggle(tutor.Id, day, e))" />
+                                                        <label class="form-check-label small">@day</label>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </details>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <label class="small text-muted mb-0">Start</label>
+                                            <input class="form-control form-control-sm"
+                                                   style="max-width: 130px;"
+                                                   type="time"
+                                                   value="@GetTutorStartTimeDraft(tutor.Id)"
+                                                   @oninput="(e => OnTutorStartTimeChanged(tutor.Id, e.Value?.ToString()))" />
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <label class="small text-muted mb-0">Finish</label>
+                                            <input class="form-control form-control-sm"
+                                                   style="max-width: 130px;"
+                                                   type="time"
+                                                   value="@GetTutorFinishTimeDraft(tutor.Id)"
+                                                   @oninput="(e => OnTutorFinishTimeChanged(tutor.Id, e.Value?.ToString()))" />
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(GetTutorComputedHoursDraft(tutor.Id)))
+                                        {
+                                            <div class="small text-muted">Hours/Day: @GetTutorComputedHoursDraft(tutor.Id)</div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(GetTutorTimeValidationError(tutor.Id)))
+                                        {
+                                            <div class="text-danger small">@GetTutorTimeValidationError(tutor.Id)</div>
+                                        }
+                                    </td>
+                                    <td>@tutor.DBSStatus</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="row gx-3 gy-3 align-items-end">
+                    <div class="col-md-8">
+                        <small class="text-muted">Selected Tutors: @selectedTutorIds.Count</small>
+                    </div>
+                    <div class="col-md-4 d-grid">
+                        <button class="btn btn-primary" @onclick="AssignTutorToStudent" disabled="@(selectedTutorIds.Count == 0)">Assign Selected Tutor(s)</button>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+
+    <section class="mb-5">
+        <h2>Tutor Submissions</h2>
+        @if (tutors.Count == 0)
+        {
+            <div class="alert alert-secondary">No tutor submissions are available for review.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Courses To Be Taken</th>
+                            <th>Available Days</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tutor in tutors.OrderByDescending(t => t.SubmittedDate))
+                        {
+                            <tr>
+                                <td>@tutor.Id</td>
+                                <td>@tutor.FirstName @tutor.LastName</td>
+                                <td>@tutor.Email</td>
+                                <td>@(string.IsNullOrWhiteSpace(tutor.CoursesToBeTaken) ? "-" : tutor.CoursesToBeTaken)</td>
+                                <td>@DisplayValue(tutor.AvailableDays)</td>
+                                <td>@tutor.Status</td>
+                                <td>@tutor.SubmittedDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ToggleTutorSubmissionDetail(tutor.Id)">
+                                            @(selectedTutorSubmissionDetailId == tutor.Id ? "Hide Details" : "View Details")
+                                        </button>
+                                        <button class="btn btn-sm btn-success" @onclick="() => ApproveTutor(tutor.Id)">Approve</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (SelectedTutorSubmission != null)
+            {
+                <div class="border rounded p-3 bg-white mt-3">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                        <h5 class="mb-0">Tutor Submission Details</h5>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CloseTutorSubmissionDetail">
+                            Close
+                        </button>
+                    </div>
+                    <div class="row gx-3 gy-2">
+                        <div class="col-md-4"><strong>Name:</strong> @SelectedTutorSubmission.FirstName @SelectedTutorSubmission.LastName</div>
+                        <div class="col-md-4"><strong>Status:</strong> @SelectedTutorSubmission.Status</div>
+                        <div class="col-md-4"><strong>Submitted:</strong> @SelectedTutorSubmission.SubmittedDate.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                        <div class="col-md-4"><strong>Email:</strong> @DisplayValue(SelectedTutorSubmission.Email)</div>
+                        <div class="col-md-4"><strong>Phone:</strong> @DisplayValue(SelectedTutorSubmission.Phone)</div>
+                        <div class="col-md-4"><strong>Highest Qualification:</strong> @DisplayValue(SelectedTutorSubmission.HighestQualification)</div>
+                        <div class="col-md-4"><strong>Courses:</strong> @DisplayValue(SelectedTutorSubmission.CoursesToBeTaken)</div>
+                        <div class="col-md-4"><strong>Available Days:</strong> @DisplayValue(SelectedTutorSubmission.AvailableDays)</div>
+                        <div class="col-md-4"><strong>Course Duration:</strong> @DisplayValue(SelectedTutorSubmission.CourseDuration)</div>
+                        <div class="col-md-4"><strong>DBS Status:</strong> @DisplayValue(SelectedTutorSubmission.DBSStatus)</div>
+                        <div class="col-md-4"><strong>Right To Work:</strong> @DisplayValue(SelectedTutorSubmission.RightToWorkStatus)</div>
+                        <div class="col-md-4"><strong>Safeguarding:</strong> @DisplayValue(SelectedTutorSubmission.SafeguardingTrainingStatus)</div>
+                        <div class="col-md-4"><strong>Contract Type:</strong> @DisplayValue(SelectedTutorSubmission.ContractType)</div>
+                    </div>
+
+                    <div class="mt-3 border-top pt-3">
+                        <label class="form-label">Decision Reason</label>
+                        <InputTextArea class="form-control"
+                                       @bind-Value="tutorReviewReason"
+                                       rows="3"
+                                       placeholder="Add reason for decline or rework. Optional for approval." />
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-success" @onclick="() => ApproveTutor(SelectedTutorSubmission.Id)">Approve</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeclineTutor(SelectedTutorSubmission.Id)">Decline</button>
+                            <button class="btn btn-sm btn-warning" @onclick="() => RequestTutorRework(SelectedTutorSubmission.Id)">Rework</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </section>
+
+</div>
+
+@code {
+    private List<StudentOnboardingData> students = new();
+    private List<StudentOnboardingData> allStudents = new();
+    private List<StudentOnboardingData> approvedStudents = new();
+    private List<TutorOnboardingData> tutors = new();
+    private List<TutorOnboardingData> allTutors = new();
+    private List<CarerOnboardingData> allCarers = new();
+    private List<TutorOnboardingData> approvedTutors = new();
+    private static readonly string[] WeekdayOptions = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    private Dictionary<int, string> tutorCoursesDrafts = new();
+    private Dictionary<int, string> tutorDaysDrafts = new();
+    private Dictionary<int, string> tutorStartTimeDrafts = new();
+    private Dictionary<int, string> tutorFinishTimeDrafts = new();
+    private Dictionary<int, string> tutorHoursPerDayDrafts = new();
+    private Dictionary<int, HashSet<string>> tutorDaySelections = new();
+    private int? selectedStudentSubmissionDetailId;
+    private int? selectedTutorSubmissionDetailId;
+    private int? selectedStudentId;
+    private HashSet<int> selectedTutorIds = new();
+    private string assignmentFilter = "all";
+    private const int PendingStudentsPageSize = 10;
+    private int pendingStudentsPageIndex = 1;
+    private const int ApprovedStudentsPageSize = 10;
+    private int approvedStudentsPageIndex = 1;
+    private string? successMessage;
+    private string? errorMessage;
+    private string? studentReviewReason;
+    private string? tutorReviewReason;
+
+    private StudentOnboardingData? SelectedStudent => selectedStudentId.HasValue ? approvedStudents.FirstOrDefault(s => s.Id == selectedStudentId.Value) : null;
+    private StudentOnboardingData? SelectedStudentSubmission => selectedStudentSubmissionDetailId.HasValue
+        ? students.FirstOrDefault(s => s.Id == selectedStudentSubmissionDetailId.Value)
+        : null;
+    private TutorOnboardingData? SelectedTutorSubmission => selectedTutorSubmissionDetailId.HasValue
+        ? tutors.FirstOrDefault(t => t.Id == selectedTutorSubmissionDetailId.Value)
+        : null;
+    private IEnumerable<StudentOnboardingData> OrderedPendingStudents => students.OrderByDescending(s => s.SubmittedDate);
+    private int TotalPendingStudentPages => Math.Max(1, (int)Math.Ceiling(students.Count / (double)PendingStudentsPageSize));
+    private int PendingStudentsStartIndex => students.Any() ? ((pendingStudentsPageIndex - 1) * PendingStudentsPageSize) + 1 : 0;
+    private int PendingStudentsEndIndex => Math.Min(pendingStudentsPageIndex * PendingStudentsPageSize, students.Count);
+    private IEnumerable<StudentOnboardingData> PagedPendingStudents
+    {
+        get
+        {
+            if (pendingStudentsPageIndex > TotalPendingStudentPages)
+            {
+                pendingStudentsPageIndex = TotalPendingStudentPages;
+            }
+
+            if (pendingStudentsPageIndex < 1)
+            {
+                pendingStudentsPageIndex = 1;
+            }
+
+            return OrderedPendingStudents
+                .Skip((pendingStudentsPageIndex - 1) * PendingStudentsPageSize)
+                .Take(PendingStudentsPageSize);
+        }
+    }
+    private IEnumerable<StudentOnboardingData> FilteredApprovedStudents => assignmentFilter switch
+    {
+        "assigned" => approvedStudents.Where(s => !string.IsNullOrWhiteSpace(s.AssignedTutorName)),
+        "unassigned" => approvedStudents.Where(s => string.IsNullOrWhiteSpace(s.AssignedTutorName)),
+        _ => approvedStudents
+    };
+    private IEnumerable<StudentOnboardingData> OrderedFilteredApprovedStudents => FilteredApprovedStudents.OrderByDescending(s => s.ApprovedDate ?? s.SubmittedDate);
+    private int TotalApprovedStudentPages => Math.Max(1, (int)Math.Ceiling(FilteredApprovedStudents.Count() / (double)ApprovedStudentsPageSize));
+    private int ApprovedStudentsStartIndex => FilteredApprovedStudents.Any() ? ((approvedStudentsPageIndex - 1) * ApprovedStudentsPageSize) + 1 : 0;
+    private int ApprovedStudentsEndIndex => Math.Min(approvedStudentsPageIndex * ApprovedStudentsPageSize, FilteredApprovedStudents.Count());
+    private IEnumerable<StudentOnboardingData> PagedApprovedStudents
+    {
+        get
+        {
+            if (approvedStudentsPageIndex > TotalApprovedStudentPages)
+            {
+                approvedStudentsPageIndex = TotalApprovedStudentPages;
+            }
+
+            if (approvedStudentsPageIndex < 1)
+            {
+                approvedStudentsPageIndex = 1;
+            }
+
+            return OrderedFilteredApprovedStudents
+                .Skip((approvedStudentsPageIndex - 1) * ApprovedStudentsPageSize)
+                .Take(ApprovedStudentsPageSize);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/centre-administrators");
+            return;
+        }
+
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        students = (await StudentService.GetPendingOnboardingsAsync()).ToList();
+        tutors = (await TutorService.GetPendingOnboardingsAsync()).ToList();
+        allStudents = (await StudentService.GetAllOnboardingsAsync()).ToList();
+        approvedStudents = allStudents.Where(s => s.Status == OnboardingStatus.Approved).ToList();
+        
+        // Load approved tutors for assignment dropdown
+        allTutors = (await TutorService.GetAllOnboardingsAsync()).ToList();
+        allCarers = (await CarerService.GetAllOnboardingsAsync()).ToList();
+        approvedTutors = allTutors.Where(t => t.Status == OnboardingStatus.Approved).ToList();
+        selectedTutorIds = new HashSet<int>();
+        pendingStudentsPageIndex = 1;
+        approvedStudentsPageIndex = 1;
+        InitializeTutorPlanningDrafts();
+    }
+
+    private async Task ApproveStudent(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+        var approvalReason = string.IsNullOrWhiteSpace(studentReviewReason)
+            ? "Approved by centre administrator"
+            : studentReviewReason.Trim();
+
+        var approved = await StudentService.ApproveOnboardingAsync(id, approvalReason);
+        if (approved)
+        {
+            successMessage = $"Student submission #{id} has been approved.";
+            studentReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to approve student submission #{id}.";
+        }
+    }
+
+    private async Task DeclineStudent(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(studentReviewReason) || studentReviewReason.Trim().Length < 5)
+        {
+            errorMessage = "Provide a reason of at least 5 characters before declining a student submission.";
+            return;
+        }
+
+        var declined = await StudentService.DeclineOnboardingAsync(
+            id,
+            studentReviewReason,
+            AdminSession.Username ?? "Admin");
+
+        if (declined)
+        {
+            successMessage = $"Student submission #{id} has been declined.";
+            studentReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to decline student submission #{id}.";
+        }
+    }
+
+    private async Task RequestStudentRework(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(studentReviewReason) || studentReviewReason.Trim().Length < 5)
+        {
+            errorMessage = "Provide a reason of at least 5 characters before requesting student rework.";
+            return;
+        }
+
+        var reworkRequested = await StudentService.RequestReworkOnboardingAsync(
+            id,
+            studentReviewReason,
+            AdminSession.Username ?? "Admin");
+
+        if (reworkRequested)
+        {
+            successMessage = $"Student submission #{id} has been sent for rework.";
+            studentReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to request rework for student submission #{id}.";
+        }
+    }
+
+    private async Task ApproveTutor(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+        var approvalReason = string.IsNullOrWhiteSpace(tutorReviewReason)
+            ? "Approved by centre administrator"
+            : tutorReviewReason.Trim();
+
+        var approved = await TutorService.ApproveOnboardingAsync(id, approvalReason);
+        if (approved)
+        {
+            successMessage = $"Tutor submission #{id} has been approved.";
+            tutorReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to approve tutor submission #{id}.";
+        }
+    }
+
+    private async Task DeclineTutor(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(tutorReviewReason) || tutorReviewReason.Trim().Length < 5)
+        {
+            errorMessage = "Provide a reason of at least 5 characters before declining a tutor submission.";
+            return;
+        }
+
+        var declined = await TutorService.DeclineOnboardingAsync(
+            id,
+            tutorReviewReason,
+            AdminSession.Username ?? "Admin");
+
+        if (declined)
+        {
+            successMessage = $"Tutor submission #{id} has been declined.";
+            tutorReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to decline tutor submission #{id}.";
+        }
+    }
+
+    private async Task RequestTutorRework(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(tutorReviewReason) || tutorReviewReason.Trim().Length < 5)
+        {
+            errorMessage = "Provide a reason of at least 5 characters before requesting tutor rework.";
+            return;
+        }
+
+        var reworkRequested = await TutorService.RequestReworkOnboardingAsync(
+            id,
+            tutorReviewReason,
+            AdminSession.Username ?? "Admin");
+
+        if (reworkRequested)
+        {
+            successMessage = $"Tutor submission #{id} has been sent for rework.";
+            tutorReviewReason = null;
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = $"Unable to request rework for tutor submission #{id}.";
+        }
+    }
+
+    private async Task SelectStudentForAssignmentAsync(int studentId)
+    {
+        if (!approvedStudents.Any(s => s.Id == studentId))
+        {
+            errorMessage = "Only approved students can be assigned to a tutor.";
+            successMessage = null;
+            return;
+        }
+
+        var selectedStudent = approvedStudents.First(s => s.Id == studentId);
+        if (!string.IsNullOrWhiteSpace(selectedStudent.AssignedTutorName))
+        {
+            var confirmed = await JS.InvokeAsync<bool>(
+                "confirm",
+                $"{selectedStudent.FirstName} {selectedStudent.LastName} is currently assigned to {selectedStudent.AssignedTutorName}. Continue adding another tutor?");
+
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        selectedStudentId = studentId;
+        selectedTutorIds = new HashSet<int>();
+        InitializeTutorPlanningDrafts();
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CloseStudentDetail()
+    {
+        selectedStudentId = null;
+        selectedTutorIds.Clear();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task AssignTutorToStudent()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (!selectedStudentId.HasValue || selectedTutorIds.Count == 0)
+        {
+            errorMessage = "Select a student and at least one tutor before assigning.";
+            return;
+        }
+
+        var selectedTutors = approvedTutors
+            .Where(t => selectedTutorIds.Contains(t.Id))
+            .ToList();
+
+        if (selectedTutors.Count == 0)
+        {
+            errorMessage = "Selected tutor(s) not found or not approved.";
+            return;
+        }
+
+        var assignedTutorNames = new List<string>();
+        foreach (var tutor in selectedTutors)
+        {
+            var timeValidationError = GetTutorTimeValidationError(tutor.Id);
+            if (!string.IsNullOrWhiteSpace(timeValidationError))
+            {
+                errorMessage = $"{tutor.FirstName} {tutor.LastName}: {timeValidationError}";
+                return;
+            }
+
+            var planningUpdated = await TutorService.UpdateCoursePlanningAsync(
+                tutor.Id,
+                GetTutorCoursesDraft(tutor.Id),
+                GetTutorDaysDraft(tutor.Id),
+                GetTutorComputedHoursDraft(tutor.Id),
+                GetTutorStartTimeDraft(tutor.Id),
+                GetTutorFinishTimeDraft(tutor.Id),
+                AdminSession.Username ?? "Admin");
+
+            if (!planningUpdated)
+            {
+                errorMessage = $"Unable to save course planning for tutor #{tutor.Id}.";
+                continue;
+            }
+
+            var assigned = await StudentService.AssignTutorAsync(selectedStudentId.Value, tutor.Id, $"{tutor.FirstName} {tutor.LastName}");
+            if (assigned)
+            {
+                assignedTutorNames.Add($"{tutor.FirstName} {tutor.LastName}");
+            }
+        }
+
+        if (assignedTutorNames.Count > 0)
+        {
+            successMessage = $"Student #{selectedStudentId.Value} has been assigned to: {string.Join(", ", assignedTutorNames)}.";
+            await LoadDataAsync();
+        }
+        else
+        {
+            errorMessage = "Failed to assign the selected tutor(s).";
+        }
+    }
+
+    private void OnTutorSelectionChanged(int tutorId, ChangeEventArgs args)
+    {
+        var isChecked = args.Value is bool b && b;
+        if (isChecked)
+        {
+            selectedTutorIds.Add(tutorId);
+        }
+        else
+        {
+            selectedTutorIds.Remove(tutorId);
+        }
+    }
+
+    private void OnAssignmentFilterChanged()
+    {
+        approvedStudentsPageIndex = 1;
+    }
+
+    private void ToggleStudentSubmissionDetail(int studentId)
+    {
+        selectedStudentSubmissionDetailId = selectedStudentSubmissionDetailId == studentId ? null : studentId;
+        studentReviewReason = null;
+    }
+
+    private void ToggleTutorSubmissionDetail(int tutorId)
+    {
+        selectedTutorSubmissionDetailId = selectedTutorSubmissionDetailId == tutorId ? null : tutorId;
+        tutorReviewReason = null;
+    }
+
+    private void CloseTutorSubmissionDetail()
+    {
+        selectedTutorSubmissionDetailId = null;
+        tutorReviewReason = null;
+    }
+
+    private void NextPendingStudentsPage()
+    {
+        if (pendingStudentsPageIndex < TotalPendingStudentPages)
+        {
+            pendingStudentsPageIndex++;
+        }
+    }
+
+    private void PreviousPendingStudentsPage()
+    {
+        if (pendingStudentsPageIndex > 1)
+        {
+            pendingStudentsPageIndex--;
+        }
+    }
+
+    private void NextApprovedStudentsPage()
+    {
+        if (approvedStudentsPageIndex < TotalApprovedStudentPages)
+        {
+            approvedStudentsPageIndex++;
+        }
+    }
+
+    private void PreviousApprovedStudentsPage()
+    {
+        if (approvedStudentsPageIndex > 1)
+        {
+            approvedStudentsPageIndex--;
+        }
+    }
+
+    private void InitializeTutorPlanningDrafts()
+    {
+        tutorCoursesDrafts = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => t.CoursesToBeTaken ?? string.Empty);
+
+        tutorDaySelections = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => ParseTutorDaySelection(t.CourseDuration));
+
+        tutorDaysDrafts = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => string.Join(", ", WeekdayOptions.Where(day => tutorDaySelections[t.Id].Contains(day))));
+
+        tutorStartTimeDrafts = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => ParseTutorStartTime(t.CourseDuration));
+
+        tutorFinishTimeDrafts = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => ParseTutorFinishTime(t.CourseDuration));
+
+        tutorHoursPerDayDrafts = approvedTutors.ToDictionary(
+            t => t.Id,
+            t => ParseTutorHoursPerDay(t.CourseDuration));
+    }
+
+    private string GetTutorCoursesDraft(int tutorId)
+    {
+        return tutorCoursesDrafts.TryGetValue(tutorId, out var value) ? value : string.Empty;
+    }
+
+    private string GetTutorDaysDraft(int tutorId)
+    {
+        return tutorDaysDrafts.TryGetValue(tutorId, out var value) ? value : string.Empty;
+    }
+
+    private string GetTutorDaysSummary(int tutorId)
+    {
+        var value = GetTutorDaysDraft(tutorId);
+        return string.IsNullOrWhiteSpace(value) ? "Select day(s)" : value;
+    }
+
+    private string GetTutorStartTimeDraft(int tutorId)
+    {
+        return tutorStartTimeDrafts.TryGetValue(tutorId, out var value) ? value : string.Empty;
+    }
+
+    private string GetTutorFinishTimeDraft(int tutorId)
+    {
+        return tutorFinishTimeDrafts.TryGetValue(tutorId, out var value) ? value : string.Empty;
+    }
+
+    private string GetTutorHoursPerDayDraft(int tutorId)
+    {
+        return tutorHoursPerDayDrafts.TryGetValue(tutorId, out var value) ? value : string.Empty;
+    }
+
+    private string GetTutorComputedHoursDraft(int tutorId)
+    {
+        var computed = ComputeHoursPerDay(tutorId);
+        return string.IsNullOrWhiteSpace(computed) ? GetTutorHoursPerDayDraft(tutorId) : computed;
+    }
+
+    private string? GetTutorTimeValidationError(int tutorId)
+    {
+        var startValue = GetTutorStartTimeDraft(tutorId);
+        var finishValue = GetTutorFinishTimeDraft(tutorId);
+
+        if (string.IsNullOrWhiteSpace(startValue) && string.IsNullOrWhiteSpace(finishValue))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(startValue) || string.IsNullOrWhiteSpace(finishValue))
+        {
+            return "Enter both start and finish time.";
+        }
+
+        if (!TimeOnly.TryParse(startValue, out var startTime) || !TimeOnly.TryParse(finishValue, out var finishTime))
+        {
+            return "Enter valid start and finish times.";
+        }
+
+        var duration = finishTime - startTime;
+        if (duration <= TimeSpan.Zero)
+        {
+            return "Finish time must be after start time.";
+        }
+
+        var hours = (decimal)duration.TotalHours;
+        if (hours < 0.5m || hours > 12m)
+        {
+            return "Hours per day must be between 0.5 and 12.";
+        }
+
+        return null;
+    }
+
+    private void OnTutorCoursesChanged(int tutorId, string? value)
+    {
+        tutorCoursesDrafts[tutorId] = value ?? string.Empty;
+    }
+
+    private bool IsTutorDaySelected(int tutorId, string day)
+    {
+        return tutorDaySelections.TryGetValue(tutorId, out var selections) && selections.Contains(day);
+    }
+
+    private void OnTutorDayToggle(int tutorId, string day, ChangeEventArgs args)
+    {
+        if (!tutorDaySelections.TryGetValue(tutorId, out var selections))
+        {
+            selections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            tutorDaySelections[tutorId] = selections;
+        }
+
+        var isChecked = args.Value is bool b && b;
+        if (isChecked)
+        {
+            selections.Add(day);
+        }
+        else
+        {
+            selections.Remove(day);
+        }
+
+        tutorDaysDrafts[tutorId] = string.Join(", ", WeekdayOptions.Where(option => selections.Contains(option)));
+    }
+
+    private void OnTutorHoursPerDayChanged(int tutorId, string? value)
+    {
+        tutorHoursPerDayDrafts[tutorId] = NormalizeHoursForInput(value);
+    }
+
+    private void OnTutorStartTimeChanged(int tutorId, string? value)
+    {
+        tutorStartTimeDrafts[tutorId] = value?.Trim() ?? string.Empty;
+        tutorHoursPerDayDrafts[tutorId] = ComputeHoursPerDay(tutorId);
+    }
+
+    private void OnTutorFinishTimeChanged(int tutorId, string? value)
+    {
+        tutorFinishTimeDrafts[tutorId] = value?.Trim() ?? string.Empty;
+        tutorHoursPerDayDrafts[tutorId] = ComputeHoursPerDay(tutorId);
+    }
+
+    private string ComputeHoursPerDay(int tutorId)
+    {
+        var startValue = GetTutorStartTimeDraft(tutorId);
+        var finishValue = GetTutorFinishTimeDraft(tutorId);
+        if (!TimeOnly.TryParse(startValue, out var startTime) || !TimeOnly.TryParse(finishValue, out var finishTime))
+        {
+            return string.Empty;
+        }
+
+        var duration = finishTime - startTime;
+        if (duration <= TimeSpan.Zero)
+        {
+            return string.Empty;
+        }
+
+        var hours = (decimal)duration.TotalHours;
+        return hours.ToString("0.##");
+    }
+
+    private static string ParseTutorDays(string? courseDuration)
+    {
+        if (string.IsNullOrWhiteSpace(courseDuration))
+        {
+            return string.Empty;
+        }
+
+        const string daysPrefix = "Days:";
+        const string separator = "; Hours/Day:";
+        var value = courseDuration.Trim();
+        if (!value.StartsWith(daysPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        var separatorIndex = value.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
+        if (separatorIndex < 0)
+        {
+            return value[daysPrefix.Length..].Trim();
+        }
+
+        return value.Substring(daysPrefix.Length, separatorIndex - daysPrefix.Length).Trim();
+    }
+
+    private static HashSet<string> ParseTutorDaySelection(string? courseDuration)
+    {
+        var selections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var parsed = ParseTutorDays(courseDuration);
+        if (string.IsNullOrWhiteSpace(parsed))
+        {
+            return selections;
+        }
+
+        var parts = parsed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            var normalized = NormalizeWeekday(part);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                selections.Add(normalized);
+            }
+        }
+
+        return selections;
+    }
+
+    private static string? NormalizeWeekday(string value)
+    {
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "monday" or "mon" => "Mon",
+            "tuesday" or "tue" or "tues" => "Tue",
+            "wednesday" or "wed" => "Wed",
+            "thursday" or "thu" or "thur" or "thurs" => "Thu",
+            "friday" or "fri" => "Fri",
+            "saturday" or "sat" => "Sat",
+            "sunday" or "sun" => "Sun",
+            _ => null
+        };
+    }
+
+    private static string ParseTutorHoursPerDay(string? courseDuration)
+    {
+        if (string.IsNullOrWhiteSpace(courseDuration))
+        {
+            return string.Empty;
+        }
+
+        const string separator = "; Hours/Day:";
+        var value = courseDuration.Trim();
+        var separatorIndex = value.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
+        if (separatorIndex < 0)
+        {
+            return value;
+        }
+
+        return NormalizeHoursForInput(value[(separatorIndex + separator.Length)..]);
+    }
+
+    private static string ParseTutorStartTime(string? courseDuration)
+    {
+        if (string.IsNullOrWhiteSpace(courseDuration))
+        {
+            return string.Empty;
+        }
+
+        const string timePrefix = "; Time:";
+        const string hoursSeparator = "; Hours/Day:";
+        var value = courseDuration.Trim();
+        var timeIndex = value.IndexOf(timePrefix, StringComparison.OrdinalIgnoreCase);
+        if (timeIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        var startIndex = timeIndex + timePrefix.Length;
+        var hoursIndex = value.IndexOf(hoursSeparator, startIndex, StringComparison.OrdinalIgnoreCase);
+        var timeSegment = hoursIndex >= 0
+            ? value.Substring(startIndex, hoursIndex - startIndex)
+            : value[startIndex..];
+
+        var parts = timeSegment.Split('-', StringSplitOptions.TrimEntries);
+        return parts.Length == 2 ? parts[0] : string.Empty;
+    }
+
+    private static string ParseTutorFinishTime(string? courseDuration)
+    {
+        if (string.IsNullOrWhiteSpace(courseDuration))
+        {
+            return string.Empty;
+        }
+
+        const string timePrefix = "; Time:";
+        const string hoursSeparator = "; Hours/Day:";
+        var value = courseDuration.Trim();
+        var timeIndex = value.IndexOf(timePrefix, StringComparison.OrdinalIgnoreCase);
+        if (timeIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        var startIndex = timeIndex + timePrefix.Length;
+        var hoursIndex = value.IndexOf(hoursSeparator, startIndex, StringComparison.OrdinalIgnoreCase);
+        var timeSegment = hoursIndex >= 0
+            ? value.Substring(startIndex, hoursIndex - startIndex)
+            : value[startIndex..];
+
+        var parts = timeSegment.Split('-', StringSplitOptions.TrimEntries);
+        return parts.Length == 2 ? parts[1] : string.Empty;
+    }
+
+    private static string NormalizeHoursForInput(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim().Replace("hours", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("hour", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        return normalized;
+    }
+
+    private static string DisplayValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private void NavigateToDashboard()
+    {
+        Navigation.NavigateTo("/centre-administrators");
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+}

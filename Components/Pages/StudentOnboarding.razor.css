@@ -1,0 +1,341 @@
+/* Student Onboarding Scoped Styles */
+
+.onboarding-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.onboarding-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #0d6efd;
+}
+
+.onboarding-header h1 {
+    color: #212529;
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.subtitle {
+    color: #6c757d;
+    font-size: 1.1rem;
+    margin: 10px 0 0 0;
+}
+
+/* Alert Styling */
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    border-left: 4px solid transparent;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    border-left-color: #198754;
+    color: #0f5132;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-left-color: #dc3545;
+    color: #842029;
+}
+
+/* Form Sections */
+.form-section {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    border-left: 4px solid #0d6efd;
+}
+
+.form-section legend {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* SEN Section - Special Styling */
+.sen-section {
+    background: #f0f7ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.sen-section legend {
+    color: #0d6efd;
+}
+
+/* Consent Section - Special Styling */
+.consent-section {
+    background: #e8f5e9;
+    border-left: 4px solid #28a745;
+}
+
+.consent-section legend {
+    color: #28a745;
+}
+
+/* Declaration Section */
+.declaration-section {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.declaration-section legend {
+    color: #856404;
+}
+
+/* GDPR Notice */
+.gdpr-notice {
+    background: #e3f2fd;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    border-left: 4px solid #2196f3;
+}
+
+.gdpr-notice h3 {
+    color: #1976d2;
+    margin-top: 0;
+}
+
+.gdpr-notice ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.gdpr-notice li {
+    margin: 5px 0;
+    color: #333;
+}
+
+.gdpr-notice a {
+    color: #1976d2;
+    text-decoration: underline;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input.form-control,
+.form-group select.form-control,
+.form-group textarea.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input.form-control:focus,
+.form-group select.form-control:focus,
+.form-group textarea.form-control:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+/* Form Row for Multi-column Layout */
+.form-row {
+    display: flex;
+    gap: 20px;
+}
+
+.form-row .form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .form-row .form-group {
+        flex: none;
+        width: 100%;
+    }
+}
+
+.col-md-6 {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Checkboxes and Radio Buttons */
+.form-check {
+    padding-left: 0;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+}
+
+.form-check-input {
+    margin-top: 4px;
+    margin-right: 8px;
+    accent-color: #0d6efd;
+    cursor: pointer;
+}
+
+.form-check-label {
+    margin-bottom: 0;
+    cursor: pointer;
+    color: #333;
+}
+
+.form-check-input:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+/* Support Requirements Container */
+.support-requirements {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+/* Validation Messages */
+.validation-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 5px;
+    display: block;
+}
+
+/* Form Text (Helper Text) */
+.form-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.875rem;
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 6px;
+    justifyContent: center;
+}
+
+.btn {
+    padding: 12px 30px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
+}
+
+.btn-primary:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5c636a;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .onboarding-container {
+        box-shadow: none;
+        background: white;
+    }
+
+    .form-actions {
+        display: none;
+    }
+
+    .alert {
+        display: none;
+    }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 576px) {
+    .onboarding-container {
+        margin: 10px;
+        padding: 15px;
+    }
+
+    .onboarding-header h1 {
+        font-size: 1.8rem;
+    }
+
+    .form-section {
+        padding: 15px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+
+    .form-group input.form-control,
+    .form-group select.form-control,
+    .form-group textarea.form-control {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}

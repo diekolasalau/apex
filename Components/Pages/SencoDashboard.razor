@@ -1,0 +1,50 @@
+@page "/senco-dashboard"
+
+<PageTitle>SENCO Dashboard</PageTitle>
+
+<div class="senco-dashboard-container">
+    <div class="senco-hero">
+        <h1>SENCO Dashboard</h1>
+        <p class="lead">Manage SEN support plans, review EHCP status, monitor risk assessments, and coordinate with tutors and carers.</p>
+    </div>
+
+    <div class="senco-grid">
+        <div class="senco-card">
+            <h2>EHCP & SEN Plans</h2>
+            <p>Review and update EHCP status, individual learning plans, and support strategies for each SEN student.</p>
+            <button class="btn btn-primary" @onclick="NavigateToStudentOnboardingReview">Review Student Onboarding</button>
+        </div>
+
+        <div class="senco-card">
+            <h2>Safeguarding Notes</h2>
+            <p>Monitor safeguarding concerns, risk assessments, and notes captured during onboarding and student support.</p>
+            <button class="btn btn-secondary" @onclick="NavigateToRiskOverview">View Safeguarding</button>
+        </div>
+
+        <div class="senco-card">
+            <h2>Communication</h2>
+            <p>Manage how carers, parents, and tutors receive updates for SEN-specific interventions and progress reviews.</p>
+            <button class="btn btn-secondary" @onclick="NavigateToCommunication">Communication Settings</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private void NavigateToStudentOnboardingReview()
+    {
+        Navigation.NavigateTo("/admin-review");
+    }
+
+    private void NavigateToRiskOverview()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void NavigateToCommunication()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

@@ -1,0 +1,50 @@
+@page "/safeguarding-leads"
+
+<PageTitle>Safeguarding Leads</PageTitle>
+
+<div class="safeguarding-container">
+    <div class="safeguarding-hero">
+        <h1>Safeguarding Leads Dashboard</h1>
+        <p class="lead">Monitor incidents, manage compliance checks, review audit trails, and support SEN safeguarding in line with UK regulatory requirements.</p>
+    </div>
+
+    <div class="safeguarding-grid">
+        <div class="safeguarding-card">
+            <h2>Incident Management</h2>
+            <p>Review reported incidents, escalate cases, and ensure all safeguarding actions are logged and tracked.</p>
+            <button class="btn btn-primary" @onclick="NavigateToIncidents">Review Incidents</button>
+        </div>
+
+        <div class="safeguarding-card">
+            <h2>Compliance Oversight</h2>
+            <p>Track GDPR status, data protection actions, and documentation required for Ofsted support and SEN audits.</p>
+            <button class="btn btn-secondary" @onclick="NavigateToCompliance">Open Compliance Tracker</button>
+        </div>
+
+        <div class="safeguarding-card">
+            <h2>Audit Trail</h2>
+            <p>Inspect recent changes, review access logs, and maintain an audit-ready record for safeguarding reviews.</p>
+            <button class="btn btn-secondary" @onclick="NavigateToAuditTrail">View Audit Logs</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private void NavigateToIncidents()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void NavigateToCompliance()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void NavigateToAuditTrail()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

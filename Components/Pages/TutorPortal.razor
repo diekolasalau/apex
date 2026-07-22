@@ -1,0 +1,922 @@
+@page "/tutor-portal"
+@using StudyMgt.Services
+@using StudyMgt.Data.Entities
+@using System.Globalization
+@inject TutorPortalService PortalService
+@inject TutorPortalSession PortalSession
+@inject AppAuditLogService AuditLog
+@inject NavigationManager Navigation
+
+<PageTitle>Tutor Portal</PageTitle>
+
+<div class="container mt-4 tutor-portal-container">
+    @if (!PortalSession.IsAuthenticated)
+    {
+        <h1>Tutor Portal Access</h1>
+        <p class="text-muted">Sign in to view your profile and students under your care.</p>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+        @if (remainingLoginAttempts.HasValue && remainingLoginAttempts.Value > 0 && !isLockedOut)
+        {
+            <div class="alert alert-warning">
+                Security notice: You have <strong>@remainingLoginAttempts</strong> login attempt(s) remaining before temporary lockout.
+            </div>
+        }
+        @if (isLockedOut && lockoutRemainingMinutes.HasValue)
+        {
+            <div class="alert alert-danger">
+                Account temporarily locked. Please wait <strong>@lockoutRemainingMinutes</strong> minute(s) before trying again.
+            </div>
+        }
+
+        <div class="row g-4 mt-1">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">Sign In</div>
+                    <div class="card-body">
+                        <EditForm Model="this" OnSubmit="HandleLoginAsync">
+                            <div class="mb-3">
+                                <label class="form-label">Username</label>
+                                <InputText class="form-control" @bind-Value="loginUsername" autocomplete="username" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <InputText type="password" class="form-control" @bind-Value="loginPassword" autocomplete="current-password" />
+                            </div>
+                            <button class="btn btn-primary" type="submit" disabled="@isLoginInProgress">
+                                @(isLoginInProgress ? "Logging in..." : "Login")
+                            </button>
+                        </EditForm>
+
+                        <hr class="my-4" />
+                        <section id="tutor-forgot-password">
+                            <button class="btn btn-link px-0" type="button" @onclick="ToggleForgotPasswordPanel">
+                                @(showForgotPasswordPanel ? "Hide Forgot Password" : "Forgot Password? Click here")
+                            </button>
+
+                            @if (showForgotPasswordPanel)
+                            {
+                                <div class="border rounded p-3 mt-2">
+                                    <h3 class="h6">Forgot Password</h3>
+                                    <p class="text-muted mb-2">Reset your portal password using your username and onboarding email.</p>
+                                    <p class="fw-semibold mb-2">Password requirements:</p>
+                                    <ul class="mb-3 ps-3">
+                                        <li>Minimum 8 characters</li>
+                                        <li>Must match Confirm New Password</li>
+                                        <li>Use your onboarding email linked to this username</li>
+                                    </ul>
+                                    <div class="mb-3">
+                                        <label class="form-label">Username</label>
+                                        <InputText class="form-control" @bind-Value="forgotUsername" autocomplete="username" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Onboarding Email</label>
+                                        <InputText class="form-control" @bind-Value="forgotEmail" type="email" autocomplete="email" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">New Password</label>
+                                        <InputText type="password" class="form-control" @bind-Value="forgotNewPassword" autocomplete="new-password" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Confirm New Password</label>
+                                        <InputText type="password" class="form-control" @bind-Value="forgotConfirmPassword" autocomplete="new-password" />
+                                    </div>
+                                    <button class="btn btn-outline-secondary" @onclick="HandleForgotPasswordAsync" disabled="@isResetInProgress">
+                                        @(isResetInProgress ? "Resetting..." : "Reset Password")
+                                    </button>
+                                </div>
+                            }
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1>Tutor Portal</h1>
+                <p class="text-muted mb-0">Welcome, @PortalSession.TutorName (@PortalSession.Username)</p>
+            </div>
+            <button class="btn btn-outline-secondary" @onclick="() => Logout()" disabled="@isLoginInProgress">Logout</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (!showPersonalInfoPanel)
+        {
+            <button class="btn btn-link px-0 mb-3" type="button" @onclick="ShowPersonalInfoPanel">
+                Personal Info
+            </button>
+        }
+
+        @if (profile is not null)
+        {
+            <div class="row g-4 mb-4">
+                @if (showPersonalInfoPanel)
+                {
+                    <div class="col-lg-5">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>My Information</span>
+                                <button class="btn btn-sm btn-link p-0" type="button" @onclick="HidePersonalInfoPanel">Close</button>
+                            </div>
+                            <div class="card-body">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-5">Name</dt>
+                                    <dd class="col-sm-7">@profile.TutorDisplayName</dd>
+                                    <dt class="col-sm-5">Email</dt>
+                                    <dd class="col-sm-7">@profile.Email</dd>
+                                    <dt class="col-sm-5">Phone</dt>
+                                    <dd class="col-sm-7">@profile.Phone</dd>
+                                    <dt class="col-sm-5">Qualification</dt>
+                                    <dd class="col-sm-7">@profile.HighestQualification</dd>
+                                    <dt class="col-sm-5">Courses</dt>
+                                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(profile.CoursesToBeTaken) ? "-" : profile.CoursesToBeTaken)</dd>
+                                    <dt class="col-sm-5">Course Duration</dt>
+                                    <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(profile.CourseDuration) ? "-" : profile.CourseDuration)</dd>
+                                    <dt class="col-sm-5">DBS Status</dt>
+                                    <dd class="col-sm-7">@profile.DBSStatus</dd>
+                                    <dt class="col-sm-5">Safeguarding</dt>
+                                    <dd class="col-sm-7">@profile.SafeguardingTrainingStatus</dd>
+                                    <dt class="col-sm-5">Contract</dt>
+                                    <dd class="col-sm-7">@profile.ContractType</dd>
+                                    <dt class="col-sm-5">Onboarding Status</dt>
+                                    <dd class="col-sm-7">@profile.OnboardingStatus</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="col-lg-7">
+                    <div class="card h-100">
+                        <div class="card-header">Students Under My Care</div>
+                        <div class="card-body">
+                            @if (students.Count == 0)
+                            {
+                                <div class="alert alert-secondary mb-0">No students are currently assigned to you.</div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-bordered align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Student ID</th>
+                                                <th>Courses</th>
+                                                <th>Day</th>
+                                                <th>Start Time</th>
+                                                <th>Finish Time</th>
+                                                <th>Assigned Date</th>
+                                                <th>Lecture Attendance</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var student in students)
+                                            {
+                                                var attendance = GetAttendanceState(student.StudentOnboardingId);
+                                                <tr class="@(selectedStudentForAttendanceId == student.StudentOnboardingId ? "table-info" : null)">
+                                                    <td>
+                                                        <button class="btn btn-link p-0 text-start" @onclick="() => SelectStudentForAttendance(student.StudentOnboardingId)">@student.StudentDisplayName</button>
+                                                    </td>
+                                                    <td>@student.StudentIdentifier</td>
+                                                    <td>@GetTutorCoursesForStudentTable()</td>
+                                                    <td>@GetTutorDaysForStudentTable()</td>
+                                                    <td>@GetTutorStartTimeForStudentTable()</td>
+                                                    <td>@GetTutorFinishTimeForStudentTable()</td>
+                                                    <td>@(student.AssignedDate?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                                    <td>@GetAttendanceStatusText(attendance)</td>
+                                                    <td>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-outline-success" @onclick="() => StartLectureForStudentAsync(student.StudentOnboardingId)" disabled="@isAttendanceActionInProgress">Begin</button>
+                                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => EndLectureForStudentAsync(student.StudentOnboardingId)" disabled="@isAttendanceActionInProgress">End</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Monthly Timesheets</span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadTimesheetsAsync" disabled="@isTimesheetLoading">
+                            @(isTimesheetLoading ? "Refreshing..." : "Refresh")
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (timesheets.Count == 0)
+                    {
+                        <div class="alert alert-secondary mb-0">No monthly timesheets have been generated yet.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Month</th>
+                                        <th>Sessions</th>
+                                        <th>Total Hours</th>
+                                        <th>Generated (UTC)</th>
+                                        <th>Export</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in timesheets)
+                                    {
+                                        <tr>
+                                            <td>@(new DateTime(item.Year, item.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture))</td>
+                                            <td>@item.SessionCount</td>
+                                            <td>@item.TotalHours</td>
+                                            <td>@item.GeneratedAtUtc.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                            <td>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadTimesheetPdf(item.Year, item.Month)">PDF</button>
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadTimesheetExcel(item.Year, item.Month)">Excel</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Holiday / Off-Day Booking</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadTimeOffBookingsAsync" disabled="@isTimeOffLoading">
+                        @(isTimeOffLoading ? "Refreshing..." : "Refresh")
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Request Type</label>
+                            <InputSelect class="form-select" @bind-Value="timeOffRequestType">
+                                <option value="Holiday">Holiday</option>
+                                <option value="Off Day">Off Day</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Start Date</label>
+                            <InputDate class="form-control" @bind-Value="timeOffStartDate" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">End Date</label>
+                            <InputDate class="form-control" @bind-Value="timeOffEndDate" />
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" @onclick="SubmitTimeOffBookingAsync" disabled="@isTimeOffSubmitting">
+                                @(isTimeOffSubmitting ? "Submitting..." : "Book")
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Reason</label>
+                            <InputTextArea class="form-control" @bind-Value="timeOffReason" rows="3" placeholder="State why you need this holiday/off-day(s)." />
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    @if (timeOffBookings.Count == 0)
+                    {
+                        <div class="alert alert-secondary mb-0">No holiday or off-day bookings submitted yet.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Requested (UTC)</th>
+                                        <th>Type</th>
+                                        <th>Start</th>
+                                        <th>End</th>
+                                        <th>Days</th>
+                                        <th>Status</th>
+                                        <th>Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var booking in timeOffBookings)
+                                    {
+                                        <tr>
+                                            <td>@booking.RequestedAtUtc.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                            <td>@booking.RequestType</td>
+                                            <td>@booking.StartDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)</td>
+                                            <td>@booking.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)</td>
+                                            <td>@booking.TotalDays</td>
+                                            <td>
+                                                <span class="badge @(booking.ApprovalStatus == "Approved" ? "text-bg-success" : booking.ApprovalStatus == "Rejected" ? "text-bg-danger" : "text-bg-warning")">
+                                                    @booking.ApprovalStatus
+                                                </span>
+                                            </td>
+                                            <td>@booking.Reason</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string? loginUsername;
+    private string? loginPassword;
+
+    private string? forgotUsername;
+    private string? forgotEmail;
+    private string? forgotNewPassword;
+    private string? forgotConfirmPassword;
+
+    private TutorPortalProfileView? profile;
+    private List<TutorPortalStudentView> students = new();
+    private List<TutorMonthlyTimesheetView> timesheets = new();
+    private List<TutorTimeOffBookingView> timeOffBookings = new();
+    private string? successMessage;
+    private string? errorMessage;
+    private bool isLoginInProgress;
+    private bool isResetInProgress;
+    private bool showForgotPasswordPanel;
+    private bool isTimesheetLoading;
+    private bool isTimeOffLoading;
+    private bool isTimeOffSubmitting;
+    private bool isAttendanceActionInProgress;
+    private bool showPersonalInfoPanel;
+    private int? remainingLoginAttempts;
+    private int? lockoutRemainingMinutes;
+    private bool isLockedOut;
+    private int? selectedStudentForAttendanceId;
+    private Dictionary<int, TutorStudentAttendanceStateView> attendanceStateByStudentId = new();
+    private string timeOffRequestType = "Holiday";
+    private DateTime timeOffStartDate = DateTime.Today;
+    private DateTime timeOffEndDate = DateTime.Today;
+    private string? timeOffReason;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PortalSession.IsAuthenticated)
+        {
+            await LoadPortalDataAsync();
+        }
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        ClearMessages();
+
+        if (string.IsNullOrWhiteSpace(loginUsername) || string.IsNullOrWhiteSpace(loginPassword))
+        {
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "TutorPortalLoginFailed",
+                pagePath: "/tutor-portal",
+                actorRole: "Tutor",
+                actorUsername: string.IsNullOrWhiteSpace(loginUsername) ? "unknown" : loginUsername,
+                success: false,
+                details: "Username or password was missing.");
+
+            errorMessage = "Username and password are required.";
+            return;
+        }
+
+        isLoginInProgress = true;
+
+        try
+        {
+            var result = await PortalService.LoginAsync(loginUsername ?? string.Empty, loginPassword ?? string.Empty);
+            if (!result.Success)
+            {
+                remainingLoginAttempts = result.RemainingLoginAttempts;
+                lockoutRemainingMinutes = result.LockoutRemainingMinutes;
+                isLockedOut = result.IsLockedOut;
+
+                var action = result.IsLockedOut
+                    ? "TutorPortalLoginLockout"
+                    : "TutorPortalLoginFailed";
+
+                await AuditLog.LogAsync(
+                    eventType: "Security",
+                    action: action,
+                    pagePath: "/tutor-portal",
+                    actorRole: "Tutor",
+                    actorUsername: loginUsername,
+                    success: false,
+                    details: result.Message);
+
+                errorMessage = result.Message;
+                return;
+            }
+
+            PortalSession.SignIn(result.TutorOnboardingId ?? 0, result.TutorName ?? string.Empty, result.Username ?? string.Empty, result.SessionLogId);
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "TutorPortalLoginSucceeded",
+                pagePath: "/tutor-portal",
+                actorRole: "Tutor",
+                actorUsername: result.Username,
+                entityType: "TutorOnboarding",
+                entityId: result.TutorOnboardingId?.ToString(),
+                success: true,
+                details: "Tutor signed in to portal.");
+
+            loginPassword = null;
+            await LoadPortalDataAsync();
+        }
+        finally
+        {
+            isLoginInProgress = false;
+        }
+    }
+
+    private async Task HandleForgotPasswordAsync()
+    {
+        ClearMessages();
+
+        if (!string.Equals(forgotNewPassword, forgotConfirmPassword, StringComparison.Ordinal))
+        {
+            errorMessage = "New password and confirmation password do not match.";
+            return;
+        }
+
+        isResetInProgress = true;
+
+        try
+        {
+            var result = await PortalService.ResetPasswordAsync(
+                forgotUsername ?? string.Empty,
+                forgotEmail ?? string.Empty,
+                forgotNewPassword ?? string.Empty);
+
+            if (!result.Success)
+            {
+                await AuditLog.LogAsync(
+                    eventType: "Security",
+                    action: "TutorPortalPasswordResetFailed",
+                    pagePath: "/tutor-portal",
+                    actorRole: "Tutor",
+                    actorUsername: string.IsNullOrWhiteSpace(forgotUsername) ? "unknown" : forgotUsername,
+                    success: false,
+                    details: result.Message);
+
+                errorMessage = result.Message;
+                return;
+            }
+
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "TutorPortalPasswordResetSucceeded",
+                pagePath: "/tutor-portal",
+                actorRole: "Tutor",
+                actorUsername: result.Username,
+                entityType: "TutorOnboarding",
+                entityId: result.TutorOnboardingId?.ToString(),
+                success: true,
+                details: "Tutor reset portal password.");
+
+            forgotNewPassword = null;
+            forgotConfirmPassword = null;
+            successMessage = result.Message;
+        }
+        finally
+        {
+            isResetInProgress = false;
+        }
+    }
+
+    private void ToggleForgotPasswordPanel()
+    {
+        showForgotPasswordPanel = !showForgotPasswordPanel;
+    }
+
+    private async Task LoadPortalDataAsync()
+    {
+        ClearMessages();
+
+        try
+        {
+            var tutorId = PortalSession.TutorOnboardingId ?? 0;
+            profile = await PortalService.GetTutorProfileAsync(tutorId);
+            students = await PortalService.GetStudentsUnderCareAsync(tutorId);
+            await LoadAttendanceStatesAsync();
+            await LoadTimesheetsAsync();
+            await LoadTimeOffBookingsAsync();
+
+            if (profile is null)
+            {
+                await Logout("Your tutor profile could not be loaded. Please sign in again.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load tutor portal data: {ex.Message}";
+        }
+    }
+
+    private void ShowPersonalInfoPanel()
+    {
+        showPersonalInfoPanel = true;
+    }
+
+    private void HidePersonalInfoPanel()
+    {
+        showPersonalInfoPanel = false;
+    }
+
+    private async Task LoadTimesheetsAsync()
+    {
+        if (!PortalSession.IsAuthenticated)
+        {
+            timesheets.Clear();
+            return;
+        }
+
+        isTimesheetLoading = true;
+        try
+        {
+            var tutorId = PortalSession.TutorOnboardingId ?? 0;
+            timesheets = await PortalService.GetTutorMonthlyTimesheetsAsync(tutorId);
+        }
+        catch
+        {
+            timesheets.Clear();
+        }
+        finally
+        {
+            isTimesheetLoading = false;
+        }
+    }
+
+    private async Task LoadAttendanceStatesAsync()
+    {
+        attendanceStateByStudentId.Clear();
+
+        if (!PortalSession.IsAuthenticated || !PortalSession.TutorOnboardingId.HasValue || string.IsNullOrWhiteSpace(PortalSession.Username))
+        {
+            return;
+        }
+
+        var states = await PortalService.GetStudentAttendanceStatesAsync(PortalSession.TutorOnboardingId.Value, PortalSession.Username);
+        foreach (var state in states)
+        {
+            attendanceStateByStudentId[state.StudentOnboardingId] = state;
+        }
+    }
+
+    private async Task LoadTimeOffBookingsAsync()
+    {
+        if (!PortalSession.IsAuthenticated || !PortalSession.TutorOnboardingId.HasValue || string.IsNullOrWhiteSpace(PortalSession.Username))
+        {
+            timeOffBookings.Clear();
+            return;
+        }
+
+        isTimeOffLoading = true;
+        try
+        {
+            timeOffBookings = await PortalService.GetTimeOffBookingsAsync(PortalSession.TutorOnboardingId.Value, PortalSession.Username, 40);
+        }
+        catch
+        {
+            timeOffBookings.Clear();
+        }
+        finally
+        {
+            isTimeOffLoading = false;
+        }
+    }
+
+    private async Task SubmitTimeOffBookingAsync()
+    {
+        ClearMessages();
+
+        if (!PortalSession.TutorOnboardingId.HasValue || string.IsNullOrWhiteSpace(PortalSession.Username))
+        {
+            errorMessage = "Session expired. Please login again.";
+            return;
+        }
+
+        isTimeOffSubmitting = true;
+
+        try
+        {
+            var result = await PortalService.SubmitTimeOffBookingAsync(
+                PortalSession.TutorOnboardingId.Value,
+                PortalSession.Username,
+                new TutorTimeOffBookingCreateModel
+                {
+                    RequestType = timeOffRequestType,
+                    StartDate = timeOffStartDate,
+                    EndDate = timeOffEndDate,
+                    Reason = timeOffReason ?? string.Empty
+                });
+
+            if (!result.Success)
+            {
+                errorMessage = result.Message;
+                return;
+            }
+
+            successMessage = result.Message;
+            timeOffReason = null;
+            await LoadTimeOffBookingsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to submit booking: {ex.Message}";
+        }
+        finally
+        {
+            isTimeOffSubmitting = false;
+        }
+    }
+
+    private TutorStudentAttendanceStateView GetAttendanceState(int studentOnboardingId)
+    {
+        if (attendanceStateByStudentId.TryGetValue(studentOnboardingId, out var state))
+        {
+            return state;
+        }
+
+        return new TutorStudentAttendanceStateView
+        {
+            StudentOnboardingId = studentOnboardingId,
+            HasActiveLecture = false
+        };
+    }
+
+    private void SelectStudentForAttendance(int studentOnboardingId)
+    {
+        selectedStudentForAttendanceId = studentOnboardingId;
+    }
+
+    private async Task StartLectureForStudentAsync(int studentOnboardingId)
+    {
+        ClearMessages();
+
+        if (!PortalSession.TutorOnboardingId.HasValue || string.IsNullOrWhiteSpace(PortalSession.Username))
+        {
+            errorMessage = "Session expired. Please login again.";
+            return;
+        }
+
+        var student = students.FirstOrDefault(x => x.StudentOnboardingId == studentOnboardingId);
+        if (student?.AssignedDate is null || student.AssignedDate.Value.Date != DateTime.Today)
+        {
+            errorMessage = "kindly check the date";
+            return;
+        }
+
+        isAttendanceActionInProgress = true;
+        try
+        {
+            var result = await PortalService.StartStudentLectureAsync(PortalSession.TutorOnboardingId.Value, PortalSession.Username, studentOnboardingId);
+            if (!result.Success)
+            {
+                errorMessage = result.Message;
+                return;
+            }
+
+            successMessage = result.Message;
+            selectedStudentForAttendanceId = studentOnboardingId;
+            await LoadAttendanceStatesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to begin lecture attendance: {ex.Message}";
+        }
+        finally
+        {
+            isAttendanceActionInProgress = false;
+        }
+    }
+
+    private async Task EndLectureForStudentAsync(int studentOnboardingId)
+    {
+        ClearMessages();
+
+        if (!PortalSession.TutorOnboardingId.HasValue || string.IsNullOrWhiteSpace(PortalSession.Username))
+        {
+            errorMessage = "Session expired. Please login again.";
+            return;
+        }
+
+        isAttendanceActionInProgress = true;
+        try
+        {
+            var result = await PortalService.EndStudentLectureAsync(PortalSession.TutorOnboardingId.Value, PortalSession.Username, studentOnboardingId);
+            if (!result.Success)
+            {
+                errorMessage = result.Message;
+                return;
+            }
+
+            successMessage = result.Message;
+            selectedStudentForAttendanceId = studentOnboardingId;
+            await LoadAttendanceStatesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to end lecture attendance: {ex.Message}";
+        }
+        finally
+        {
+            isAttendanceActionInProgress = false;
+        }
+    }
+
+    private static string GetAttendanceStatusText(TutorStudentAttendanceStateView attendance)
+    {
+        if (attendance.HasActiveLecture && attendance.ActiveLectureStartUtc.HasValue)
+        {
+            return $"In progress (started {attendance.ActiveLectureStartUtc.Value:dd/MM HH:mm:ss} UTC)";
+        }
+
+        if (attendance.LastLectureEndUtc.HasValue)
+        {
+            var duration = attendance.LastDurationMinutes.HasValue
+                ? $", {FormatDurationHoursMinutes(attendance.LastDurationMinutes.Value)}"
+                : string.Empty;
+            return $"Last ended {attendance.LastLectureEndUtc.Value:dd/MM HH:mm:ss} UTC{duration}";
+        }
+
+        return "Not started";
+    }
+
+    private static string FormatDurationHoursMinutes(int totalMinutes)
+    {
+        var safeMinutes = Math.Max(0, totalMinutes);
+        var hours = safeMinutes / 60;
+        var minutes = safeMinutes % 60;
+
+        return $"{hours:00}:{minutes:00}:00";
+    }
+
+    private void DownloadTimesheetPdf(int year, int month)
+    {
+        if (!PortalSession.TutorOnboardingId.HasValue)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo($"/api/timesheets/tutor/{PortalSession.TutorOnboardingId.Value}/{year}/{month}/pdf", forceLoad: true);
+    }
+
+    private void DownloadTimesheetExcel(int year, int month)
+    {
+        if (!PortalSession.TutorOnboardingId.HasValue)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo($"/api/timesheets/tutor/{PortalSession.TutorOnboardingId.Value}/{year}/{month}/excel", forceLoad: true);
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+        remainingLoginAttempts = null;
+        lockoutRemainingMinutes = null;
+        isLockedOut = false;
+    }
+
+    private async Task Logout(string message = "You have been logged out successfully.")
+    {
+        var tutorId = PortalSession.TutorOnboardingId;
+        var currentUsername = PortalSession.Username;
+        var sessionLogId = PortalSession.CurrentSessionLogId;
+
+        if (tutorId.HasValue && !string.IsNullOrWhiteSpace(currentUsername))
+        {
+            await PortalService.RecordLogoutAsync(tutorId.Value, currentUsername, sessionLogId);
+        }
+
+        await AuditLog.LogAsync(
+            eventType: "Security",
+            action: "TutorPortalLogout",
+            pagePath: "/tutor-portal",
+            actorRole: "Tutor",
+            actorUsername: PortalSession.Username,
+            entityType: "TutorOnboarding",
+            entityId: PortalSession.TutorOnboardingId?.ToString(),
+            success: true,
+            details: "Tutor signed out of portal.");
+
+        PortalSession.SignOut();
+        profile = null;
+        students.Clear();
+        timesheets.Clear();
+        timeOffBookings.Clear();
+        selectedStudentForAttendanceId = null;
+        attendanceStateByStudentId.Clear();
+        loginPassword = null;
+        loginUsername = null;
+        ClearMessages();
+        successMessage = message;
+    }
+
+    private string GetTutorCoursesForStudentTable()
+    {
+        return string.IsNullOrWhiteSpace(profile?.CoursesToBeTaken) ? "-" : profile.CoursesToBeTaken;
+    }
+
+    private string GetTutorDaysForStudentTable()
+    {
+        return ParseTutorCourseDuration().Days;
+    }
+
+    private string GetTutorStartTimeForStudentTable()
+    {
+        return ParseTutorCourseDuration().StartTime;
+    }
+
+    private string GetTutorFinishTimeForStudentTable()
+    {
+        return ParseTutorCourseDuration().FinishTime;
+    }
+
+    private (string Days, string StartTime, string FinishTime) ParseTutorCourseDuration()
+    {
+        var courseDuration = profile?.CourseDuration;
+        if (string.IsNullOrWhiteSpace(courseDuration))
+        {
+            return ("-", "-", "-");
+        }
+
+        var days = "-";
+        var startTime = "-";
+        var finishTime = "-";
+
+        var parts = courseDuration.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            if (part.StartsWith("Days:", StringComparison.OrdinalIgnoreCase))
+            {
+                var parsedDays = part[5..].Trim();
+                days = string.IsNullOrWhiteSpace(parsedDays) ? "-" : parsedDays;
+                continue;
+            }
+
+            if (part.StartsWith("Time:", StringComparison.OrdinalIgnoreCase))
+            {
+                var parsedTime = part[5..].Trim();
+                if (!string.IsNullOrWhiteSpace(parsedTime))
+                {
+                    var timeParts = parsedTime.Split('-', StringSplitOptions.TrimEntries);
+                    if (timeParts.Length == 2)
+                    {
+                        startTime = string.IsNullOrWhiteSpace(timeParts[0]) ? "-" : timeParts[0];
+                        finishTime = string.IsNullOrWhiteSpace(timeParts[1]) ? "-" : timeParts[1];
+                    }
+                }
+
+                continue;
+            }
+
+            if (part.StartsWith("Hours/Day:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Backward-compatible parse for legacy strings that may only store day values.
+            if (days == "-")
+            {
+                days = part;
+            }
+        }
+
+        return (days, startTime, finishTime);
+    }
+}

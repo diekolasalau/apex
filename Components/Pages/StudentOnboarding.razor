@@ -1,0 +1,685 @@
+@page "/student-onboarding"
+@implements IDisposable
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Json
+@using Microsoft.AspNetCore.WebUtilities
+@using StudyMgt.Services
+@inject StudentOnboardingService OnboardingService
+@inject CouncilRequestService CouncilRequests
+@inject CentreAdminSession AdminSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Student Onboarding Intake</PageTitle>
+
+<div class="onboarding-container">
+    <div class="onboarding-header">
+        <h1>Student Onboarding Intake</h1>
+        <p class="subtitle">Centre administrator intake for Special Educational Needs (SEN) support</p>
+    </div>
+
+    <FormStatusAlert
+        Type="success"
+        Title="Form Submitted Successfully"
+        Message="@successMessage"
+        OnClose="ClearMessages" />
+
+    <FormStatusAlert
+        Type="error"
+        Title="Submission Failed"
+        Message="@errorMessage"
+        OnClose="ClearMessages" />
+
+    <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="StudentOnboardingForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger mb-3" />
+        
+        <!-- GDPR Privacy Notice -->
+        <div class="gdpr-notice">
+            <h3>Data Protection & Privacy Notice</h3>
+            <p>Student and family data is collected in accordance with UK GDPR and the Data Protection Act 2018. Centre administrators use this form to:</p>
+            <ul>
+                <li>Manage the student's tutoring and educational support</li>
+                <li>Ensure safeguarding and pastoral care</li>
+                <li>Track attendance and progress</li>
+                <li>Meet SEN Code of Practice requirements</li>
+                <li>Comply with Ofsted and regulatory requirements</li>
+            </ul>
+            <p><strong>The information will be stored securely and only accessed by authorized personnel.</strong></p>
+            <p>For full details, please refer to our <a href="/privacy-policy" target="_blank">Privacy Policy</a>.</p>
+            <div class="form-check mb-3">
+                <InputCheckbox id="privacyAcknowledged" @bind-Value="model.PrivacyNoticeAcknowledged" class="form-check-input" />
+                <label class="form-check-label" for="privacyAcknowledged">
+                    I confirm the privacy notice has been reviewed and the required processing basis is in place
+                </label>
+                <ValidationMessage For="@(() => model.PrivacyNoticeAcknowledged)" />
+            </div>
+        </div>
+
+        <!-- Student Demographics Section -->
+        <fieldset class="form-section">
+            <legend>Student Demographic Information</legend>
+            
+            <div class="form-group">
+                <label for="firstName">First Name *</label>
+                <InputText id="firstName" @bind-Value="model.FirstName" class="form-control" />
+                <ValidationMessage For="@(() => model.FirstName)" />
+            </div>
+
+            <div class="form-group">
+                <label for="lastName">Last Name *</label>
+                <InputText id="lastName" @bind-Value="model.LastName" class="form-control" />
+                <ValidationMessage For="@(() => model.LastName)" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="dob">Date of Birth *</label>
+                    <InputDate id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
+                    <ValidationMessage For="@(() => model.DateOfBirth)" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="gender">Gender</label>
+                    <InputSelect id="gender" @bind-Value="model.Gender" class="form-control">
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                        <option value="Prefer Not to Say">Prefer Not to Say</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+        </fieldset>
+
+        <!-- Emergency Contact Section -->
+        <fieldset class="form-section">
+            <legend>Emergency Contact Information</legend>
+            
+            <div class="form-group">
+                <label for="emergencyContactName">Emergency Contact Name *</label>
+                <InputText id="emergencyContactName" @bind-Value="model.EmergencyContactName" class="form-control" />
+                <ValidationMessage For="@(() => model.EmergencyContactName)" />
+            </div>
+
+            <div class="form-group">
+                <label for="emergencyContactPhone">Emergency Contact Phone *</label>
+                <InputText id="emergencyContactPhone" @bind-Value="model.EmergencyContactPhone" class="form-control" type="tel" />
+                <ValidationMessage For="@(() => model.EmergencyContactPhone)" />
+            </div>
+
+            <div class="form-group">
+                <label for="emergencyContactEmail">Emergency Contact Email</label>
+                <InputText id="emergencyContactEmail" @bind-Value="model.EmergencyContactEmail" class="form-control" type="email" />
+            </div>
+
+            <div class="form-group">
+                <label for="relationship">Relationship to Student *</label>
+                <InputSelect id="relationship" @bind-Value="model.RelationshipToStudent" class="form-control">
+                    <option value="">Select Relationship</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Guardian">Guardian</option>
+                    <option value="Carer">Carer</option>
+                    <option value="Relative">Relative</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.RelationshipToStudent)" />
+            </div>
+        </fieldset>
+
+        <!-- SEN Specific Section -->
+        <fieldset class="form-section sen-section">
+            <legend>Special Educational Needs (SEN) Information</legend>
+            
+            <div class="form-group">
+                <label for="senIndicators">SEN Indicators *</label>
+                <InputTextArea id="senIndicators" @bind-Value="model.SENIndicators" class="form-control" 
+                    placeholder="Describe any known SEN, disabilities, or learning needs" rows="3" />
+                <ValidationMessage For="@(() => model.SENIndicators)" />
+                <small class="form-text text-muted">e.g., Dyslexia, ADHD, ASD, Physical disability, etc.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="ehcpStatus">EHCP Status *</label>
+                <InputSelect id="ehcpStatus" @bind-Value="model.EHCPStatus" class="form-control">
+                    <option value="">Select EHCP Status</option>
+                    <option value="No EHCP">No EHCP</option>
+                    <option value="EHCP in Progress">EHCP in Progress</option>
+                    <option value="EHCP Active">EHCP Active</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.EHCPStatus)" />
+            </div>
+
+            <div class="form-group">
+                <label for="ehcpDocument">Upload EHCP Document (if applicable)</label>
+                <InputFile id="ehcpDocument" OnChange="@HandleEHCPUpload" class="form-control" accept=".pdf,.doc,.docx" />
+                <small class="form-text text-muted">Accepted formats: PDF, DOC, DOCX (Max 10MB)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="ilps">Individual Learning Plan (ILP) Summary</label>
+                <InputTextArea id="ilps" @bind-Value="model.ILPSummary" class="form-control" 
+                    placeholder="Summary of current learning goals and support strategies" rows="3" />
+            </div>
+
+            <div class="form-group">
+                <label for="supportRequirements">Additional Support Requirements</label>
+                <div class="support-requirements">
+                    <div class="form-check">
+                        <InputCheckbox id="physicalAccommodation" @bind-Value="model.RequiresPhysicalAccommodation" class="form-check-input" />
+                        <label class="form-check-label" for="physicalAccommodation">Physical Accommodation</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="hearingSupport" @bind-Value="model.RequiresHearingSupport" class="form-check-input" />
+                        <label class="form-check-label" for="hearingSupport">Hearing Support</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="visualSupport" @bind-Value="model.RequiresVisualSupport" class="form-check-input" />
+                        <label class="form-check-label" for="visualSupport">Visual Support</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="communicationSupport" @bind-Value="model.RequiresCommunicationSupport" class="form-check-input" />
+                        <label class="form-check-label" for="communicationSupport">Communication Support</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="behaviorSupport" @bind-Value="model.RequiresBehaviorSupport" class="form-check-input" />
+                        <label class="form-check-label" for="behaviorSupport">Behavior Support</label>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Safeguarding & Health Section -->
+        <fieldset class="form-section">
+            <legend>Safeguarding & Health Information</legend>
+            
+            <div class="form-group">
+                <label for="safeguardingNotes">Known Safeguarding Concerns or Risk Factors</label>
+                <InputTextArea id="safeguardingNotes" @bind-Value="model.SafeguardingNotes" class="form-control" 
+                    placeholder="Any relevant safeguarding information for the designated safeguarding lead" rows="3" />
+                <small class="form-text text-muted">This information is confidential and will be securely stored.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="medicalInfo">Medical Information & Allergies</label>
+                <InputTextArea id="medicalInfo" @bind-Value="model.MedicalInformation" class="form-control" 
+                    placeholder="Any relevant medical conditions, medications, or allergies" rows="2" />
+            </div>
+
+            <div class="form-group">
+                <label for="riskAssessment">Risk Assessment Notes</label>
+                <InputTextArea id="riskAssessment" @bind-Value="model.RiskAssessmentNotes" class="form-control" 
+                    placeholder="Any vulnerability assessments or risk evaluations" rows="2" />
+            </div>
+        </fieldset>
+
+        <!-- Consent Management Section -->
+        <fieldset class="form-section consent-section">
+            <legend>Consent & Communication Preferences</legend>
+            
+            <div class="form-check mb-3">
+                <InputCheckbox id="dataSharing" @bind-Value="model.ConsentDataSharing" class="form-check-input" />
+                <label class="form-check-label" for="dataSharing">
+                    I consent to data sharing with relevant professionals (e.g., tutors, SEN coordinators) for educational support *
+                </label>
+                <ValidationMessage For="@(() => model.ConsentDataSharing)" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="photoConsent" @bind-Value="model.ConsentPhotos" class="form-check-input" />
+                <label class="form-check-label" for="photoConsent">
+                    I consent to photographs/videos for progress documentation (internal use only)
+                </label>
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="emailCommunication" @bind-Value="model.ConsentEmailCommunication" class="form-check-input" />
+                <label class="form-check-label" for="emailCommunication">
+                    I consent to email communication from the centre *
+                </label>
+                <ValidationMessage For="@(() => model.ConsentEmailCommunication)" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="smsCommunication" @bind-Value="model.ConsentSMSCommunication" class="form-check-input" />
+                <label class="form-check-label" for="smsCommunication">
+                    I consent to SMS notifications for attendance and emergencies
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="preferredContact">Preferred Contact Method *</label>
+                <InputSelect id="preferredContact" @bind-Value="model.PreferredContactMethod" class="form-control">
+                    <option value="">Select Contact Method</option>
+                    <option value="Email">Email</option>
+                    <option value="Phone">Phone</option>
+                    <option value="SMS">SMS</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.PreferredContactMethod)" />
+            </div>
+        </fieldset>
+
+        <!-- Declaration -->
+        <fieldset class="form-section declaration-section">
+            <legend>Declaration</legend>
+            
+            <div class="form-group">
+                <div class="form-check">
+                    <InputCheckbox id="declaration" @bind-Value="model.DeclarationConfirmed" class="form-check-input" />
+                    <label class="form-check-label" for="declaration">
+                        I confirm, as the submitting centre administrator or authorised staff member, that this information has been reviewed and recorded as accurately and completely as possible. *
+                    </label>
+                    <ValidationMessage For="@(() => model.DeclarationConfirmed)" />
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-outline-primary" @onclick="SaveDraftAsync" disabled="@isSubmitting">
+                Save and Continue Later
+            </button>
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                @(isSubmitting ? "Saving..." : "Record Student Onboarding")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private const string DraftStorageKey = "onboarding:student:draft";
+
+    private StudentOnboardingModel model = CreateDefaultModel();
+    private string? successMessage = null;
+    private string? errorMessage = null;
+    private bool isSubmitting;
+    private long? councilRequestIdPrefillFromQuery;
+
+    protected override void OnInitialized()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/centre-administrators", forceLoad: false);
+            return;
+        }
+
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("councilRequestId", out var councilRequestIdValues) &&
+            long.TryParse(councilRequestIdValues.FirstOrDefault(), out var councilRequestId) &&
+            councilRequestId > 0)
+        {
+            councilRequestIdPrefillFromQuery = councilRequestId;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var restoredDraft = await RestoreDraftAsync();
+        var appliedCouncilPrefill = await ApplyCouncilRequestPrefillAsync();
+        if (restoredDraft || appliedCouncilPrefill)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> ApplyCouncilRequestPrefillAsync()
+    {
+        if (!councilRequestIdPrefillFromQuery.HasValue)
+        {
+            return false;
+        }
+
+        var councilRequest = await CouncilRequests.GetRequestByIdAsync(councilRequestIdPrefillFromQuery.Value);
+        if (councilRequest is null)
+        {
+            return false;
+        }
+
+        ApplyCouncilRequestPrefill(councilRequest);
+        successMessage = "Council request details were loaded into this administrator intake form. Review the remaining fields and declarations before submitting.";
+        return true;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private void ApplyCouncilRequestPrefill(CouncilRequestService.CouncilRequestListItem request)
+    {
+        var (firstName, lastName) = SplitStudentName(request.YoungPersonName);
+        if (!string.IsNullOrWhiteSpace(firstName))
+        {
+            model.FirstName = firstName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(lastName))
+        {
+            model.LastName = lastName;
+        }
+
+        if (request.DateOfBirth.HasValue)
+        {
+            model.DateOfBirth = request.DateOfBirth.Value;
+        }
+
+        model.Gender = request.Gender;
+        model.EmergencyContactName = request.ParentCarer ?? string.Empty;
+        model.EmergencyContactPhone = FirstNonEmpty(request.Mobile, request.HomeTel) ?? string.Empty;
+        model.EmergencyContactEmail = request.Email;
+        model.RelationshipToStudent = ResolveRelationshipToStudent(request.ParentCarer);
+        model.SENIndicators = request.SendInformation ?? string.Empty;
+        model.EHCPStatus = ResolveEhcpStatus(request.SendInformation);
+        model.ILPSummary = BuildCouncilEducationSummary(request);
+        model.SafeguardingNotes = string.Equals(request.RequestType, "Safeguarding Concern", StringComparison.OrdinalIgnoreCase)
+            ? request.Details
+            : model.SafeguardingNotes;
+        model.RiskAssessmentNotes = BuildCouncilRiskSummary(request);
+
+        var preferredContactMethod = NormalizePreferredContactMethod(request.PreferredContactMethod);
+        if (!string.IsNullOrWhiteSpace(preferredContactMethod))
+        {
+            model.PreferredContactMethod = preferredContactMethod;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        ClearMessages();
+        isSubmitting = true;
+        try
+        {
+            var missingRequiredDeclarations = GetMissingRequiredDeclarations();
+            if (missingRequiredDeclarations.Count > 0)
+            {
+                errorMessage = BuildMissingRequirementsMessage(missingRequiredDeclarations);
+                successMessage = null;
+                return;
+            }
+
+            var result = await OnboardingService.SaveOnboardingAsync(model);
+
+            if (result.Success)
+            {
+                successMessage = "Student onboarding recorded successfully. You will be returned to the centre administrator dashboard in 5 seconds...";
+                errorMessage = null;
+                model = CreateDefaultModel();
+                await JS.InvokeVoidAsync("onboardingDrafts.clear", DraftStorageKey);
+                await Task.Delay(5000);
+                Navigation.NavigateTo("/centre-administrators?onboardingSuccess=true");
+            }
+            else
+            {
+                errorMessage = result.Errors.Count > 0
+                    ? result.Errors[0]
+                    : result.Message ?? "Failed to record the student onboarding intake.";
+                successMessage = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error recording onboarding: {ex.Message}";
+            successMessage = null;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleEHCPUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            ClearMessages();
+            if (e.File != null)
+            {
+                if (e.File.Size > 10 * 1024 * 1024) // 10MB limit
+                {
+                    errorMessage = "File size exceeds 10MB limit.";
+                    return;
+                }
+                model.EHCPDocumentName = e.File.Name;
+                // In a real implementation, save the file
+                successMessage = $"File '{e.File.Name}' uploaded successfully.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error uploading file: {ex.Message}";
+        }
+    }
+
+    private void CancelForm()
+    {
+        Navigation.NavigateTo("/centre-administrators");
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        try
+        {
+            ClearMessages();
+
+            var payload = JsonSerializer.Serialize(model);
+            await JS.InvokeVoidAsync("onboardingDrafts.save", DraftStorageKey, payload);
+            successMessage = "Draft saved. An administrator can continue this onboarding later on this device.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving draft: {ex.Message}";
+        }
+    }
+
+    private async Task<bool> RestoreDraftAsync()
+    {
+        try
+        {
+            var payload = await JS.InvokeAsync<string?>("onboardingDrafts.load", DraftStorageKey);
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return false;
+            }
+
+            var restored = JsonSerializer.Deserialize<StudentOnboardingModel>(payload);
+            if (restored is null)
+            {
+                return false;
+            }
+
+            model = restored;
+            successMessage = "Saved administrator draft restored. You can continue where you left off.";
+            return true;
+        }
+        catch
+        {
+            // Ignore draft restoration issues to avoid blocking form usage.
+            return false;
+        }
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private List<string> GetMissingRequiredDeclarations()
+    {
+        var missing = new List<string>();
+
+        if (model.DateOfBirth == default)
+            missing.Add("Student date of birth");
+
+        if (!model.PrivacyNoticeAcknowledged)
+            missing.Add("Privacy notice acknowledgement");
+
+        if (!model.ConsentDataSharing)
+            missing.Add("Data sharing consent");
+
+        if (!model.ConsentEmailCommunication)
+            missing.Add("Email communication consent");
+
+        if (!model.DeclarationConfirmed)
+            missing.Add("Declaration confirmation");
+
+        return missing;
+    }
+
+    private static string BuildMissingRequirementsMessage(List<string> missingRequiredDeclarations)
+    {
+        var messageBuilder = new StringBuilder("Please complete the following required fields: ");
+        messageBuilder.Append(string.Join(", ", missingRequiredDeclarations));
+        messageBuilder.Append('.');
+        return messageBuilder.ToString();
+    }
+
+    private static (string FirstName, string LastName) SplitStudentName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var parts = fullName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        if (parts.Length == 1)
+        {
+            return (parts[0], string.Empty);
+        }
+
+        return (parts[0], string.Join(' ', parts.Skip(1)));
+    }
+
+    private static string ResolveRelationshipToStudent(string? parentCarer)
+    {
+        if (string.IsNullOrWhiteSpace(parentCarer))
+        {
+            return string.Empty;
+        }
+
+        var normalized = parentCarer.Trim().ToLowerInvariant();
+        if (normalized.Contains("guardian", StringComparison.Ordinal))
+        {
+            return "Guardian";
+        }
+
+        if (normalized.Contains("carer", StringComparison.Ordinal))
+        {
+            return "Carer";
+        }
+
+        if (normalized.Contains("relative", StringComparison.Ordinal))
+        {
+            return "Relative";
+        }
+
+        return "Parent";
+    }
+
+    private static string ResolveEhcpStatus(string? sendInformation)
+    {
+        if (string.IsNullOrWhiteSpace(sendInformation))
+        {
+            return string.Empty;
+        }
+
+        var normalized = sendInformation.ToLowerInvariant();
+        if (normalized.Contains("ehcp active", StringComparison.Ordinal) ||
+            normalized.Contains("active ehcp", StringComparison.Ordinal))
+        {
+            return "EHCP Active";
+        }
+
+        if (normalized.Contains("ehcp", StringComparison.Ordinal) ||
+            normalized.Contains("in progress", StringComparison.Ordinal))
+        {
+            return "EHCP in Progress";
+        }
+
+        return "No EHCP";
+    }
+
+    private static string? NormalizePreferredContactMethod(string? preferredContactMethod)
+    {
+        if (string.IsNullOrWhiteSpace(preferredContactMethod))
+        {
+            return null;
+        }
+
+        return preferredContactMethod.Trim().ToLowerInvariant() switch
+        {
+            "email" => "Email",
+            "phone" => "Phone",
+            "sms" => "SMS",
+            _ => "Email"
+        };
+    }
+
+    private static string BuildCouncilEducationSummary(CouncilRequestService.CouncilRequestListItem request)
+    {
+        var lines = new List<string>();
+
+        AddSummaryLine(lines, "First language", request.FirstLanguage);
+        AddSummaryLine(lines, "Address", request.Address);
+        AddSummaryLine(lines, "Last school", request.LastSchoolName);
+        AddSummaryLine(lines, "Current year group", request.CurrentYearGroup);
+        AddSummaryLine(lines, "Setting type", request.SettingType);
+        AddSummaryLine(lines, "Attainment reading", request.AttainmentReading);
+        AddSummaryLine(lines, "Attainment writing", request.AttainmentWriting);
+        AddSummaryLine(lines, "Attainment maths", request.AttainmentMaths);
+        AddSummaryLine(lines, "Attainment science", request.AttainmentScience);
+        AddSummaryLine(lines, "Total hours required", request.TotalHoursRequired);
+        AddSummaryLine(lines, "Frequency", request.Frequency);
+        AddSummaryLine(lines, "Requested days", request.RequestedDays);
+        AddSummaryLine(lines, "Lesson location", request.LessonLocation);
+        AddSummaryLine(lines, "Tuition requirements", request.TuitionRequirements);
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildCouncilRiskSummary(CouncilRequestService.CouncilRequestListItem request)
+    {
+        var lines = new List<string>();
+
+        AddSummaryLine(lines, "Council request type", request.RequestType);
+        AddSummaryLine(lines, "Council request details", request.Details);
+        AddSummaryLine(lines, "Invoice recipient", request.InvoiceRecipient);
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static void AddSummaryLine(List<string> lines, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            lines.Add($"{label}: {value.Trim()}");
+        }
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+    }
+
+    private static StudentOnboardingModel CreateDefaultModel()
+    {
+        return new StudentOnboardingModel
+        {
+            DateOfBirth = DateTime.Today
+        };
+    }
+}

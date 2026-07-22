@@ -1,0 +1,2976 @@
+@page "/centre-administrators"
+
+@using StudyMgt.Services
+@using System.Globalization
+@inject StudentOnboardingService StudentService
+@inject TutorOnboardingService TutorService
+@inject TutorPortalService TutorPortal
+@inject CarerOnboardingService CarerService
+@inject CarerPortalService CarerPortal
+@inject CentreAdminAccessService AdminAccess
+@inject CentreAdminSession AdminSession
+@inject AppAuditLogService AuditLog
+@inject CouncilPortalAccessService CouncilPortalAccess
+@inject CouncilRequestService CouncilRequests
+@inject NavigationManager Navigation
+
+<PageTitle>Centre Administrators</PageTitle>
+
+<div class="admin-dashboard-container">
+    @if (!AdminSession.IsAuthenticated)
+    {
+        <div class="admin-hero">
+            <h1>Centre Administrator Access</h1>
+            <p class="lead">Sign in to access onboarding controls and administrator-only workflows.</p>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(onboardingSuccessMessage))
+        {
+            <div class="alert alert-success">@onboardingSuccessMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <div class="admin-card" style="max-width: 520px; margin: 0 auto;">
+            <h2>Administrator Login</h2>
+            <p>Use your centre administrator credentials to continue.</p>
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <InputText class="form-control" @bind-Value="username" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText type="password" class="form-control" @bind-Value="password" />
+            </div>
+            <button class="btn btn-primary w-100 mb-2" @onclick="LoginAsync" disabled="@isLoggingIn">
+                @if (isLoggingIn)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Signing In...</span>
+                }
+                else
+                {
+                    <span>Sign In</span>
+                }
+            </button>
+            <div class="text-center">
+                <a href="/password-reset-request" class="btn btn-link btn-sm">Forgot Password?</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="admin-hero text-start mb-4">
+                <h1>Centre Administrator Dashboard</h1>
+                <p class="lead">Manage centre settings, user approvals, compliance oversight, and reporting from one secure place.</p>
+            </div>
+            <button class="btn btn-outline-secondary" @onclick="Logout">Sign Out</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <!-- Pending Submissions Summary -->
+        <div class="pending-summary mb-4">
+            <h2>Pending Submissions Overview</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="summary-card">
+                        <h3>Students</h3>
+                        <p class="count">@pendingStudents.Count</p>
+                        <p>pending onboarding submissions</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="summary-card">
+                        <h3>Tutors</h3>
+                        <p class="count">@pendingTutors.Count</p>
+                        <p>pending onboarding submissions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-grid">
+            <div class="admin-card">
+                <h2>Onboarding Review</h2>
+                <p>Review pending student and tutor onboarding submissions, validate details, approve registrations, and assign students to tutors.</p>
+                <button class="btn btn-primary" @onclick="NavigateToAdminReview">Review Onboardings</button>
+            </div>
+
+            <div class="admin-card">
+                <h2>Privileged Onboarding</h2>
+                <p>Start onboarding directly on behalf of students and tutors from administrator interface.</p>
+                <div class="d-flex flex-column gap-2">
+                    <button class="btn btn-primary" @onclick="NavigateToStudentOnboarding" disabled="@(!AdminSession.CanOnboardStudents)">Onboard Student</button>
+                    <button class="btn btn-primary" @onclick="NavigateToTutorOnboarding" disabled="@(!AdminSession.CanOnboardTutors)">Onboard Tutor</button>
+                </div>
+            </div>
+
+            <div class="admin-card">
+                <h2>Compliance & Audit</h2>
+                <p>Track data protection compliance, monitor audit logs, and manage consent records for UK GDPR and Ofsted readiness.</p>
+                <button class="btn btn-secondary" @onclick="NavigateToCompliance">View Compliance</button>
+            </div>
+
+            <div class="admin-card">
+                <h2>Reports & Attendance</h2>
+                <p>Generate progress reports, attendance summaries, and SEN support plans for review by staff and parents.</p>
+                <button class="btn btn-secondary" @onclick="NavigateToReportsAsync">View Reports</button>
+            </div>
+        </div>
+
+        <section class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>User Creation</h2>
+                    <p class="mb-0">Create login accounts for centre administrators, tutors, and carers.</p>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(adminUserManagementMessage))
+            {
+                <div class="alert alert-info mt-3 mb-0">@adminUserManagementMessage</div>
+            }
+
+            <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                    <label class="form-label">Account Type</label>
+                    <InputSelect class="form-select" @bind-Value="selectedUserCreationType">
+                        <option value="Admin">Centre Admin</option>
+                        <option value="Tutor">Tutor Portal</option>
+                        <option value="Carer">Carer Portal</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Email</label>
+                    <InputText class="form-control" @bind-Value="additionalAdminEmail" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Username</label>
+                    <InputText class="form-control" @bind-Value="additionalAdminUsername" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="additionalAdminPassword" />
+                    <div class="form-text">Minimum 8 characters.</div>
+                </div>
+
+                @if (string.Equals(selectedUserCreationType, "Admin", StringComparison.Ordinal))
+                {
+                    <div class="col-md-3">
+                        <label class="form-label">Full Name</label>
+                        <InputText class="form-control" @bind-Value="additionalAdminFullName" />
+                    </div>
+                }
+                else if (string.Equals(selectedUserCreationType, "Carer", StringComparison.Ordinal))
+                {
+                    <div class="col-md-3">
+                        <label class="form-label">Carer ID</label>
+                        <InputText class="form-control" @bind-Value="additionalAccountReferenceId" />
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-outline-primary"
+                        @onclick="CreateUserAccountAsync"
+                        disabled="@(isCreatingAdditionalAdminUser)">
+                    @(isCreatingAdditionalAdminUser ? "Creating..." : "Create User")
+                </button>
+            </div>
+        </section>
+
+        @if (showReportsPanel)
+        {
+        <section id="reports" class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Operational Reports</h2>
+                    <p class="mb-0">Live onboarding reports for administrator decisions, risk management, and capacity planning.</p>
+                </div>
+                <button class="btn btn-outline-primary" @onclick="RefreshReportsAsync">Refresh</button>
+            </div>
+
+            <!-- Simple SVG Bar Chart Visualization -->
+            <div class="my-4">
+                <h4>Cohort Status Overview</h4>
+                <svg width="420" height="160">
+                    @{
+                        var barWidth = 40;
+                        var gap = 30;
+                        var maxVal = reportRows.Count > 0 ? reportRows.Max(r => r.Total) : 1;
+                        var yScale = 100.0 / (maxVal > 0 ? maxVal : 1);
+                        var colors = new[] { "#007bff", "#28a745", "#ffc107", "#dc3545" };
+                        int i = 0;
+                        foreach (var row in reportRows)
+                        {
+                            // Pending (yellow), Approved (green), Blocked (red)
+                            var x = 30 + i * (barWidth * 3 + gap);
+                            <rect x="@x" y="@(120 - row.Pending * yScale)" width="@barWidth" height="@(row.Pending * yScale)" fill="#ffc107" />
+                            <rect x="@(x + barWidth)" y="@(120 - row.Approved * yScale)" width="@barWidth" height="@(row.Approved * yScale)" fill="#28a745" />
+                            <rect x="@(x + barWidth * 2)" y="@(120 - row.Blocked * yScale)" width="@barWidth" height="@(row.Blocked * yScale)" fill="#dc3545" />
+                            // Labels (updated for SVG rendering)
+                            @:<text x="@(x + barWidth)" y="140" font-size="12" text-anchor="middle">@row.Cohort</text>
+                            i++;
+                        }
+                    }
+                    <!-- Y axis -->
+                    <line x1="20" y1="20" x2="20" y2="120" stroke="#333" stroke-width="2" />
+                    <line x1="20" y1="120" x2="400" y2="120" stroke="#333" stroke-width="2" />
+                    <!-- Legend -->
+                    <rect x="320" y="10" width="12" height="12" fill="#ffc107" />
+                    <text x="335" y="20" font-size="12">Pending</text>
+                    <rect x="320" y="30" width="12" height="12" fill="#28a745" />
+                    <text x="335" y="40" font-size="12">Approved</text>
+                    <rect x="320" y="50" width="12" height="12" fill="#dc3545" />
+                    <text x="335" y="60" font-size="12">Blocked</text>
+                </svg>
+            </div>
+
+            <div class="reports-kpis row g-3 mt-1">
+                <div class="col-md-4">
+                    <div class="kpi-card">
+                        <h3>Total Onboarding Submissions</h3>
+                        <p class="kpi-value">@totalSubmissions</p>
+                        <p class="kpi-sub">Across students, tutors, and carers</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-card">
+                        <h3>Approval Rate</h3>
+                        <p class="kpi-value">@overallApprovalRate%</p>
+                        <p class="kpi-sub">Approved records out of all submissions</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-card kpi-alert">
+                        <h3>Overdue Pending Reviews</h3>
+                        <p class="kpi-value">@overduePendingCount</p>
+                        <p class="kpi-sub">Pending for more than 7 days</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reports-table-wrap mt-4">
+                <h3>Pipeline Summary By Cohort</h3>
+                <table class="table table-sm table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">Cohort</th>
+                            <th scope="col">Total</th>
+                            <th scope="col">Pending</th>
+                            <th scope="col">Approved</th>
+                            <th scope="col">Rejected/Suspended</th>
+                            <th scope="col">Approval Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in reportRows)
+                        {
+                            <tr>
+                                <td>@row.Cohort</td>
+                                <td>@row.Total</td>
+                                <td>@row.Pending</td>
+                                <td>@row.Approved</td>
+                                <td>@row.Blocked</td>
+                                <td>@row.ApprovalRate%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="reports-table-wrap mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Latest Submissions</h3>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters">Clear Filters</button>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="filterStatus">
+                                    <option value="">All</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Approved">Approved</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Rejected">Rejected</option>
+                                    <option value="Suspended">Suspended</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Cohort</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="filterCohort">
+                                    <option value="">All</option>
+                                    <option value="Student">Students</option>
+                                    <option value="Tutor">Tutors</option>
+                                    <option value="Carer">Carers</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">From Date (UTC)</label>
+                                <InputDate class="form-control form-control-sm" @bind-Value="filterFromDate" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">To Date (UTC)</label>
+                                <InputDate class="form-control form-control-sm" @bind-Value="filterToDate" />
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFiltersAsync">Apply Filters</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (filteredSubmissions.Count == 0 && latestSubmissions.Count > 0)
+                {
+                    <p class="text-muted mb-0">No records match the selected filters.</p>
+                }
+                else if (latestSubmissions.Count == 0)
+                {
+                    <p class="text-muted mb-0">No onboarding records available yet.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Submitted</th>
+                                <th scope="col">Cohort</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Age (days)</th>
+                                <th scope="col">View</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in PagedFilteredSubmissions)
+                            {
+                                <tr>
+                                    <td>@item.SubmittedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@item.Cohort</td>
+                                    <td>@item.DisplayName</td>
+                                    <td>
+                                        <span class="status-chip @GetStatusCss(item.Status)">@item.Status</span>
+                                    </td>
+                                    <td>@item.AgeInDays</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewSubmissionDetails(item)">View</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <small class="text-muted">
+                            @if (filteredSubmissions.Any())
+                            {
+                                <span>Showing @SubmissionStartIndex-@SubmissionEndIndex of @filteredSubmissions.Count records</span>
+                            }
+                            else
+                            {
+                                <span>No records match the selected filters.</span>
+                            }
+                        </small>
+                        <div class="btn-group" role="group" aria-label="Submission paging">
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousSubmissionPage" disabled="@(submissionBatchPage <= 1)">Previous</button>
+                            <button class="btn btn-outline-secondary btn-sm" disabled>Page @submissionBatchPage of @TotalSubmissionPages</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="NextSubmissionPage" disabled="@(submissionBatchPage >= TotalSubmissionPages)">Next</button>
+                        </div>
+                    </div>
+
+                    @if (selectedSubmissionDetails.Count > 0 || isEditingSelectedSubmission)
+                    {
+                        <div class="admin-card mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <h3 class="mb-1">@selectedSubmissionTitle</h3>
+                                    <p class="text-muted mb-0">@selectedSubmissionSubtitle</p>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    @if (!isEditingSelectedSubmission)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="BeginEditSelectedSubmission" disabled="@string.IsNullOrWhiteSpace(selectedSubmissionCohort)">Edit</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-primary" @onclick="SaveSelectedSubmissionAsync" disabled="@isSavingSelectedSubmission">
+                                            @if (isSavingSelectedSubmission)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                                <span>Saving...</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Save</span>
+                                            }
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="CancelEditSelectedSubmission" disabled="@isSavingSelectedSubmission">Cancel</button>
+                                    }
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedSubmission" disabled="@isSavingSelectedSubmission">Close</button>
+                                </div>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(selectedSubmissionEditMessage))
+                            {
+                                <div class="alert alert-info mt-3 mb-0">@selectedSubmissionEditMessage</div>
+                            }
+
+                            @if (isEditingSelectedSubmission)
+                            {
+                                <div class="row g-3 mt-1">
+                                    @if (selectedSubmissionCohort == "Student")
+                                    {
+                                        <div class="col-md-6">
+                                            <label class="form-label">First Name</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.FirstName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Last Name</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.LastName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Student ID</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.StudentId" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Date Of Birth</label>
+                                            <InputDate class="form-control" @bind-Value="studentEdit.DateOfBirth" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Gender</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.Gender" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emergency Contact</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.EmergencyContactName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emergency Contact Phone</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.EmergencyContactPhone" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emergency Contact Email</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.EmergencyContactEmail" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Relationship</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.RelationshipToStudent" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">SEN Indicators</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.SENIndicators" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">EHCP Status</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.EHCPStatus" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Assigned Tutor</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.AssignedTutorName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Preferred Contact Method</label>
+                                            <InputText class="form-control" @bind-Value="studentEdit.PreferredContactMethod" />
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Admin Notes</label>
+                                            <InputTextArea class="form-control" @bind-Value="studentEdit.AdminNotes" />
+                                        </div>
+                                    }
+                                    else if (selectedSubmissionCohort == "Tutor")
+                                    {
+                                        <div class="col-md-6">
+                                            <label class="form-label">First Name</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.FirstName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Last Name</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.LastName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Email</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.Email" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Phone</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.Phone" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Address</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.Address" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Date Of Birth</label>
+                                            <InputDate class="form-control" @bind-Value="tutorEdit.DateOfBirth" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Gender</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.Gender" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Highest Qualification</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.HighestQualification" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Teaching Experience</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.TeachingExperience" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Courses To Be Taken</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.CoursesToBeTaken" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">DBS Status</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.DBSStatus" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Right To Work</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.RightToWorkStatus" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Safeguarding Training</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.SafeguardingTrainingStatus" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Contract Type</label>
+                                            <InputText class="form-control" @bind-Value="tutorEdit.ContractType" />
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Admin Notes</label>
+                                            <InputTextArea class="form-control" @bind-Value="tutorEdit.AdminNotes" />
+                                        </div>
+                                    }
+                                    else if (selectedSubmissionCohort == "Carer")
+                                    {
+                                        <div class="col-md-6">
+                                            <label class="form-label">First Name</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.FirstName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Last Name</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.LastName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Email</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.Email" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Phone</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.PhoneNumber" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Address</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.Address" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Student Name</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.StudentName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Student ID</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.StudentId" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Relationship</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.Relationship" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">EHCP Status</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.EHCPStatus" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Preferred Contact Method</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.PreferredContactMethod" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emergency Contact</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.EmergencyContactName" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emergency Contact Phone</label>
+                                            <InputText class="form-control" @bind-Value="carerEdit.EmergencyContactPhone" />
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Approval Notes</label>
+                                            <InputTextArea class="form-control" @bind-Value="carerEdit.ApprovalNotes" />
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="row g-3 mt-1">
+                                    @foreach (var field in selectedSubmissionDetails)
+                                    {
+                                        <div class="col-md-6">
+                                            <div class="border rounded p-3 h-100 bg-light-subtle">
+                                                <div class="small text-muted text-uppercase">@field.Label</div>
+                                                <div>@field.Value</div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+
+                                @if (selectedSubmissionCohort == "Student" && selectedStudentChecklist.Count > 0)
+                                {
+                                    <div class="student-checklist-panel mt-4">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                            <div>
+                                                <h4 class="mb-1">Student Onboarding Checklist</h4>
+                                                <p class="text-muted mb-0">Applicable adult: @selectedStudentAdultLabel</p>
+                                            </div>
+                                            <span class="badge text-bg-light">Checklist</span>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            @foreach (var item in selectedStudentChecklist)
+                                            {
+                                                <div class="col-md-6">
+                                                    <div class="student-checklist-item @(item.IsComplete ? "is-complete" : "is-incomplete")">
+                                                        <div class="d-flex justify-content-between align-items-start gap-3">
+                                                            <div>
+                                                                <div class="student-checklist-label">@item.Label</div>
+                                                                <div class="student-checklist-value">@item.Value</div>
+                                                            </div>
+                                                            <span class="status-chip @(item.IsComplete ? "status-ok" : "status-pending")">
+                                                                @(item.IsComplete ? "Complete" : "Incomplete")
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+        }
+
+        <section class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Council Request Action Queue</h2>
+                    <p class="mb-0">Requests submitted from the council representative portal and queued for Centre Administrator action.</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted mb-0" for="councilStatusFilter">Status</label>
+                    <InputSelect id="councilStatusFilter"
+                                 class="form-select form-select-sm"
+                                 style="min-width: 180px;"
+                                 @bind-Value="councilRequestStatusFilter"
+                                 @bind-Value:after="OnCouncilRequestStatusFilterChanged">
+                        <option value="All">All statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Accepted">Accepted</option>
+                        <option value="Declined">Declined</option>
+                        <option value="Reviewed">Reviewed</option>
+                    </InputSelect>
+                    <button class="btn btn-outline-primary" @onclick="LoadCouncilRequestsAsync">Refresh</button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(councilRequestDecisionMessage))
+            {
+                <div class="alert alert-info mt-3 mb-0">@councilRequestDecisionMessage</div>
+            }
+
+            <div class="reports-table-wrap mt-3">
+                @if (councilRequests.Count == 0)
+                {
+                    <p class="text-muted mb-0">No council requests submitted yet.</p>
+                }
+                else if (FilteredCouncilRequests.Count == 0)
+                {
+                    <p class="text-muted mb-0">No council requests match the selected status.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Received (UTC)</th>
+                                <th scope="col">Representative</th>
+                                <th scope="col">Council</th>
+                                <th scope="col">Student Identifier</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Contact</th>
+                                <th scope="col" class="council-details-header">Details</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in PagedCouncilRequests)
+                            {
+                                <tr>
+                                    <td>@request.ReceivedAtUtc.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                    <td>@request.RepresentativeName</td>
+                                    <td>@request.CouncilName</td>
+                                    <td>@request.StudentIdentifier</td>
+                                    <td>@request.RequestType</td>
+                                    <td>@request.PreferredContactMethod</td>
+                                    <td class="council-details-col">
+                                        <div>@TruncateText(request.Details, 140)</div>
+                                        <button class="btn btn-sm btn-outline-primary mt-2"
+                                                @onclick="() => ViewCouncilRequest(request)">
+                                            View
+                                        </button>
+                                    </td>
+                                    <td>@GetCouncilRequestStatusText(request)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <small class="text-muted">
+                            Showing @CouncilRequestStartIndex-@CouncilRequestEndIndex of @FilteredCouncilRequests.Count requests
+                        </small>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="GoToPreviousCouncilRequestPage"
+                                    disabled="@(councilRequestPage <= 1)">
+                                Back
+                            </button>
+                            <span class="small text-muted">Page @councilRequestPage of @TotalCouncilRequestPages</span>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="GoToNextCouncilRequestPage"
+                                    disabled="@(councilRequestPage >= TotalCouncilRequestPages)">
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (selectedCouncilRequest is not null)
+                    {
+                        <div class="admin-card mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <h3 class="mb-1">Council Request Review</h3>
+                                    <p class="text-muted mb-0">Opened @selectedCouncilRequest.ReceivedAtUtc.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture) (UTC)</p>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <span class="status-chip @GetCouncilRequestStatusCss(selectedCouncilRequest)">
+                                        @GetCouncilRequestStatusText(selectedCouncilRequest)
+                                    </span>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedCouncilRequest">Close</button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Representative</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.RepresentativeName)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Council</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.CouncilName)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Student Identifier</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.StudentIdentifier)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Young Person</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.YoungPersonName)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">DOB</div>
+                                        <div>@(selectedCouncilRequest.DateOfBirth?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "-")</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">First Language</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.FirstLanguage)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Request Type</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.RequestType)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Email</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.Email)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Preferred Contact</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.PreferredContactMethod)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Parent/Carer</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.ParentCarer)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Last School</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.LastSchoolName)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Year Group</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.CurrentYearGroup)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Total Hours Required</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.TotalHoursRequired)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Days Requested</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.RequestedDays)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Lesson Location</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.LessonLocation)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Attachments</div>
+                                        @if (selectedCouncilRequest.AttachmentNames.Count == 0)
+                                        {
+                                            <div>-</div>
+                                        }
+                                        else
+                                        {
+                                            <ul class="mb-0 ps-3">
+                                                @foreach (var attachment in selectedCouncilRequest.AttachmentNames)
+                                                {
+                                                    <li>@attachment</li>
+                                                }
+                                            </ul>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Details</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.Details)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">SEND Information</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.SendInformation)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Tuition Requirements</div>
+                                        <div>@DisplayValue(selectedCouncilRequest.TuitionRequirements)</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border rounded p-3 mt-3">
+                                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                    <div>
+                                        <h4 class="h6 mb-1">Decision Reason</h4>
+                                        <p class="text-muted mb-0">Optional note to record why the request was accepted or declined.</p>
+                                    </div>
+                                    <span class="badge text-bg-light">Optional</span>
+                                </div>
+
+                                <div class="mt-3">
+                                    <label class="form-label">Reason / Notes</label>
+                                    <InputTextArea class="form-control" @bind-Value="councilDecisionReason" rows="3" />
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-success" @onclick="() => PromptAndAcceptCouncilRequestAsync(selectedCouncilRequest)" disabled="@(isSavingCouncilRequestDecision || IsCouncilRequestApproved(selectedCouncilRequest) || IsCouncilRequestDeclined(selectedCouncilRequest))">
+                                    @(IsCouncilRequestApproved(selectedCouncilRequest) ? "Accepted" : "Accept")
+                                </button>
+                                <button class="btn btn-danger" @onclick="() => PromptAndDeclineCouncilRequestAsync(selectedCouncilRequest)" disabled="@(isSavingCouncilRequestDecision || IsCouncilRequestApproved(selectedCouncilRequest) || IsCouncilRequestDeclined(selectedCouncilRequest))">
+                                    @(IsCouncilRequestDeclined(selectedCouncilRequest) ? "Declined" : "Decline")
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Tutor Time-Off Requests</h2>
+                    <p class="mb-0">Holiday and off-day requests submitted by tutors for centre administrator approval.</p>
+                </div>
+                <button class="btn btn-outline-primary" @onclick="LoadTutorTimeOffRequestsAsync" disabled="@isSavingTimeOffDecision">Refresh</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(timeOffDecisionMessage))
+            {
+                <div class="alert alert-info mt-3 mb-0">@timeOffDecisionMessage</div>
+            }
+
+            <div class="reports-table-wrap mt-3">
+                @if (tutorTimeOffRequests.Count == 0)
+                {
+                    <p class="text-muted mb-0">No tutor time-off requests submitted yet.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Requested (UTC)</th>
+                                <th scope="col">Tutor</th>
+                                <th scope="col">Username</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Date Range</th>
+                                <th scope="col">Days</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Reason</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in tutorTimeOffRequests)
+                            {
+                                <tr>
+                                    <td>@request.RequestedAtUtc.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                    <td>@request.TutorName</td>
+                                    <td>@request.Username</td>
+                                    <td>@request.RequestType</td>
+                                    <td>@request.StartDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) - @request.EndDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@request.TotalDays</td>
+                                    <td><span class="status-chip @GetStatusCss(request.ApprovalStatus)">@request.ApprovalStatus</span></td>
+                                    <td>@TruncateText(request.Reason, 120)</td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => SelectTutorTimeOffRequest(request)">View</button>
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => ApproveTutorTimeOffRequestAsync(request)" disabled="@(isSavingTimeOffDecision || IsTimeOffDecisionLocked(request.ApprovalStatus))">Approve</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectTutorTimeOffRequestAsync(request)" disabled="@(isSavingTimeOffDecision || IsTimeOffDecisionLocked(request.ApprovalStatus))">Reject</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (selectedTutorTimeOffRequest is not null)
+                    {
+                        <div class="admin-card mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <h3 class="mb-1">Time-Off Request Review</h3>
+                                    <p class="text-muted mb-0">Request ID @selectedTutorTimeOffRequest.RequestLogId</p>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <span class="status-chip @GetStatusCss(selectedTutorTimeOffRequest.ApprovalStatus)">@selectedTutorTimeOffRequest.ApprovalStatus</span>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedTutorTimeOffRequest">Close</button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Tutor</div>
+                                        <div>@selectedTutorTimeOffRequest.TutorName (@selectedTutorTimeOffRequest.Username)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Request Type</div>
+                                        <div>@selectedTutorTimeOffRequest.RequestType</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Date Range</div>
+                                        <div>@selectedTutorTimeOffRequest.StartDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) - @selectedTutorTimeOffRequest.EndDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Total Days</div>
+                                        <div>@selectedTutorTimeOffRequest.TotalDays</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Reason</div>
+                                        <div>@DisplayValue(selectedTutorTimeOffRequest.Reason)</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Review Notes (optional)</label>
+                                    <InputTextArea class="form-control" @bind-Value="timeOffReviewNotes" rows="3" />
+                                </div>
+                                @if (selectedTutorTimeOffRequest.ReviewedAtUtc.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="small text-muted text-uppercase">Reviewed</div>
+                                        <div>@selectedTutorTimeOffRequest.ReviewedAtUtc.Value.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture) (UTC)</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="small text-muted text-uppercase">Reviewed By</div>
+                                        <div>@DisplayValue(selectedTutorTimeOffRequest.ReviewedBy)</div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-success" @onclick="ApproveSelectedTutorTimeOffRequestAsync" disabled="@(isSavingTimeOffDecision || IsTimeOffDecisionLocked(selectedTutorTimeOffRequest.ApprovalStatus))">Approve</button>
+                                <button class="btn btn-danger" @onclick="RejectSelectedTutorTimeOffRequestAsync" disabled="@(isSavingTimeOffDecision || IsTimeOffDecisionLocked(selectedTutorTimeOffRequest.ApprovalStatus))">Reject</button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Carer Student Time-Off Requests</h2>
+                    <p class="mb-0">Holiday and off-day requests submitted by carers for students, pending centre admin approval.</p>
+                </div>
+                <button class="btn btn-outline-primary" @onclick="LoadCarerStudentTimeOffRequestsAsync" disabled="@isSavingCarerTimeOffDecision">Refresh</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(carerTimeOffDecisionMessage))
+            {
+                <div class="alert alert-info mt-3 mb-0">@carerTimeOffDecisionMessage</div>
+            }
+
+            <div class="reports-table-wrap mt-3">
+                @if (carerStudentTimeOffRequests.Count == 0)
+                {
+                    <p class="text-muted mb-0">No carer student time-off requests submitted yet.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Requested (UTC)</th>
+                                <th scope="col">Carer Username</th>
+                                <th scope="col">Student</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Date Range</th>
+                                <th scope="col">Days</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Reason</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in carerStudentTimeOffRequests)
+                            {
+                                <tr>
+                                    <td>@request.RequestedAtUtc.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)</td>
+                                    <td>@request.Username</td>
+                                    <td>@request.StudentDisplayName (@request.StudentIdentifier)</td>
+                                    <td>@request.RequestType</td>
+                                    <td>@request.StartDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) - @request.EndDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@request.TotalDays</td>
+                                    <td><span class="status-chip @GetStatusCss(request.ApprovalStatus)">@request.ApprovalStatus</span></td>
+                                    <td>@TruncateText(request.Reason, 120)</td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => SelectCarerStudentTimeOffRequest(request)">View</button>
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => ApproveCarerStudentTimeOffRequestAsync(request)" disabled="@(isSavingCarerTimeOffDecision || IsTimeOffDecisionLocked(request.ApprovalStatus))">Approve</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectCarerStudentTimeOffRequestAsync(request)" disabled="@(isSavingCarerTimeOffDecision || IsTimeOffDecisionLocked(request.ApprovalStatus))">Reject</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (selectedCarerStudentTimeOffRequest is not null)
+                    {
+                        <div class="admin-card mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <h3 class="mb-1">Carer Student Time-Off Review</h3>
+                                    <p class="text-muted mb-0">Request ID @selectedCarerStudentTimeOffRequest.RequestLogId</p>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <span class="status-chip @GetStatusCss(selectedCarerStudentTimeOffRequest.ApprovalStatus)">@selectedCarerStudentTimeOffRequest.ApprovalStatus</span>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedCarerStudentTimeOffRequest">Close</button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Carer</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.Username (@selectedCarerStudentTimeOffRequest.CarerId)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Student</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.StudentDisplayName (@selectedCarerStudentTimeOffRequest.StudentIdentifier)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Request Type</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.RequestType</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Date Range</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.StartDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) - @selectedCarerStudentTimeOffRequest.EndDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Total Days</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.TotalDays</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="border rounded p-3 h-100 bg-light-subtle">
+                                        <div class="small text-muted text-uppercase">Reason</div>
+                                        <div>@DisplayValue(selectedCarerStudentTimeOffRequest.Reason)</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Review Notes (optional)</label>
+                                    <InputTextArea class="form-control" @bind-Value="carerTimeOffReviewNotes" rows="3" />
+                                </div>
+                                @if (selectedCarerStudentTimeOffRequest.ReviewedAtUtc.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="small text-muted text-uppercase">Reviewed</div>
+                                        <div>@selectedCarerStudentTimeOffRequest.ReviewedAtUtc.Value.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture) (UTC)</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="small text-muted text-uppercase">Reviewed By</div>
+                                        <div>@DisplayValue(selectedCarerStudentTimeOffRequest.ReviewedBy)</div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-success" @onclick="ApproveSelectedCarerStudentTimeOffRequestAsync" disabled="@(isSavingCarerTimeOffDecision || IsTimeOffDecisionLocked(selectedCarerStudentTimeOffRequest.ApprovalStatus))">Approve</button>
+                                <button class="btn btn-danger" @onclick="RejectSelectedCarerStudentTimeOffRequestAsync" disabled="@(isSavingCarerTimeOffDecision || IsTimeOffDecisionLocked(selectedCarerStudentTimeOffRequest.ApprovalStatus))">Reject</button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="reports-section mt-4">
+            <div class="reports-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Tutor Monthly Timesheets</h2>
+                    <p class="mb-0">Automatically generated from tutor portal Begin/End attendance actions.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="LoadTutorTimesheetsAsync">Refresh</button>
+                    <button class="btn btn-outline-secondary" @onclick="DownloadTutorTimesheetsPdf" disabled="@(tutorTimesheets.Count == 0)">PDF</button>
+                    <button class="btn btn-outline-secondary" @onclick="DownloadTutorTimesheetsExcel" disabled="@(tutorTimesheets.Count == 0)">Excel</button>
+                </div>
+            </div>
+
+            @if (attendanceMonthSummaries.Count > 0)
+            {
+                <div class="admin-card mt-3">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                        <div>
+                            <h3 class="mb-1">Attendance Snapshot</h3>
+                            <p class="text-muted mb-0">Monthly attendance activity generated from recorded Begin and End actions.</p>
+                        </div>
+                        <span class="badge text-bg-light">@attendanceMonthSummaries.Count month@(attendanceMonthSummaries.Count == 1 ? string.Empty : "s")</span>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-4">
+                            <div class="kpi-card h-100">
+                                <h3>Current Month Sessions</h3>
+                                <p class="kpi-value">@currentMonthSessionCount</p>
+                                <p class="kpi-sub">All tutors combined</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="kpi-card h-100">
+                                <h3>Current Month Hours</h3>
+                                <p class="kpi-value">@currentMonthTotalHours</p>
+                                <p class="kpi-sub">From closed lecture attendance</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="kpi-card h-100">
+                                <h3>Most Recent Month</h3>
+                                <p class="kpi-value">@mostRecentAttendanceMonthLabel</p>
+                                <p class="kpi-sub">Latest generated monthly summary</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <h4 class="mb-3">Attendance Trend</h4>
+                        <svg viewBox="0 0 760 220" class="attendance-chart" role="img" aria-label="Tutor attendance trend chart">
+                            @{
+                                var chartBottom = 182;
+                                var chartTop = 28;
+                                var chartHeight = chartBottom - chartTop;
+                                var axisColor = "#97a6b7";
+                            }
+                            @foreach (var bar in attendanceChartBars)
+                            {
+                                <rect x="@bar.X" y="@bar.Y" width="@bar.Width" height="@bar.Height" rx="10" fill="@bar.Fill" />
+                            }
+                            <line x1="20" y1="@chartTop" x2="20" y2="@chartBottom" stroke="@axisColor" stroke-width="2" />
+                            <line x1="20" y1="@chartBottom" x2="740" y2="@chartBottom" stroke="@axisColor" stroke-width="2" />
+                        </svg>
+
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <div class="d-inline-flex align-items-center gap-2 me-3">
+                                <span class="attendance-legend-box" style="background:#0d6efd;"></span>
+                                <span class="small text-muted">Current month</span>
+                            </div>
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <span class="attendance-legend-box" style="background:#1f6f8b;"></span>
+                                <span class="small text-muted">Earlier month</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            @foreach (var bar in attendanceChartBars)
+                            {
+                                <div class="attendance-month-pill @(bar.IsCurrentMonth ? "is-current" : string.Empty)">
+                                    <div class="attendance-month-label">@bar.MonthLabel @bar.SessionCount sessions</div>
+                                    <div class="attendance-month-meta">@bar.TotalHours.ToString("0.0", CultureInfo.InvariantCulture) hours</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="reports-table-wrap mt-3">
+                @if (tutorTimesheets.Count == 0)
+                {
+                    <p class="text-muted mb-0">No tutor timesheets generated yet.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Tutor</th>
+                                <th scope="col">Username</th>
+                                <th scope="col">Month</th>
+                                <th scope="col">Sessions</th>
+                                <th scope="col">Total Hours</th>
+                                <th scope="col">Generated (UTC)</th>
+                                <th scope="col">Export</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in tutorTimesheets)
+                            {
+                                <tr>
+                                    <td>@item.TutorName</td>
+                                    <td>@item.Username</td>
+                                    <td>@(new DateTime(item.Year, item.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture))</td>
+                                    <td>@item.SessionCount</td>
+                                    <td>@item.TotalHours</td>
+                                    <td>@item.GeneratedAtUtc.ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadTutorTimesheetPdf(item.TutorOnboardingId, item.Year, item.Month)">PDF</button>
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => DownloadTutorTimesheetExcel(item.TutorOnboardingId, item.Year, item.Month)">Excel</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private string? username;
+    private string? password;
+    private string? errorMessage;
+    private string? onboardingSuccessMessage;
+    private bool isLoggingIn = false;
+    private List<StudentOnboardingData> allStudents = new();
+    private List<TutorOnboardingData> allTutors = new();
+    private List<CarerOnboardingData> allCarers = new();
+    private List<StudentOnboardingData> pendingStudents = new();
+    private List<TutorOnboardingData> pendingTutors = new();
+    private List<ReportRow> reportRows = new();
+    private List<SubmissionReportItem> latestSubmissions = new();
+    private List<SubmissionReportItem> filteredSubmissions = new();
+    private List<CouncilRequestService.CouncilRequestListItem> councilRequests = new();
+    private List<TutorTimeOffApprovalQueueItem> tutorTimeOffRequests = new();
+    private List<CarerStudentTimeOffApprovalQueueItem> carerStudentTimeOffRequests = new();
+    private CouncilRequestService.CouncilRequestListItem? selectedCouncilRequest;
+    private TutorTimeOffApprovalQueueItem? selectedTutorTimeOffRequest;
+    private CarerStudentTimeOffApprovalQueueItem? selectedCarerStudentTimeOffRequest;
+    private List<AttendanceMonthSummary> attendanceMonthSummaries = new();
+    private List<AttendanceChartBar> attendanceChartBars = new();
+    private HashSet<string> reviewedCouncilRequestKeys = new(StringComparer.OrdinalIgnoreCase);
+    private string? councilRequestDecisionMessage;
+    private bool isSavingCouncilRequestDecision;
+    private string? councilDecisionReason;
+    private string? additionalAdminFullName;
+    private string? additionalAdminEmail;
+    private string? additionalAdminUsername;
+    private string? additionalAdminPassword;
+    private string selectedUserCreationType = "Admin";
+    private string? additionalAccountReferenceId;
+    private string? adminUserManagementMessage;
+    private bool isCreatingAdditionalAdminUser;
+    private bool isSavingTimeOffDecision;
+    private string? timeOffDecisionMessage;
+    private string? timeOffReviewNotes;
+    private bool isSavingCarerTimeOffDecision;
+    private string? carerTimeOffDecisionMessage;
+    private string? carerTimeOffReviewNotes;
+    private const int SubmissionBatchSize = 10;
+    private const int CouncilRequestPageSize = 5;
+    private int submissionBatchPage = 1;
+    private int councilRequestPage = 1;
+    private string councilRequestStatusFilter = "All";
+    private List<TutorMonthlyTimesheetView> tutorTimesheets = new();
+    private int currentMonthSessionCount;
+    private double currentMonthTotalHours;
+    private string mostRecentAttendanceMonthLabel = "-";
+    private bool showReportsPanel;
+    private string? selectedSubmissionTitle;
+    private string? selectedSubmissionSubtitle;
+    private List<SubmissionDetailField> selectedSubmissionDetails = new();
+    private List<StudentChecklistItem> selectedStudentChecklist = new();
+    private string selectedStudentAdultLabel = string.Empty;
+    private string? selectedSubmissionCohort;
+    private string? selectedSubmissionRecordId;
+    private bool isEditingSelectedSubmission;
+    private bool isSavingSelectedSubmission;
+    private string? selectedSubmissionEditMessage;
+    private StudentSubmissionEditModel studentEdit = new();
+    private TutorSubmissionEditModel tutorEdit = new();
+    private CarerSubmissionEditModel carerEdit = new();
+    private int totalSubmissions;
+    private int overallApprovalRate;
+    private int overduePendingCount;
+    private int TotalSubmissionPages => Math.Max(1, (int)Math.Ceiling(filteredSubmissions.Count / (double)SubmissionBatchSize));
+    private int SubmissionStartIndex => filteredSubmissions.Any() ? ((submissionBatchPage - 1) * SubmissionBatchSize) + 1 : 0;
+    private int SubmissionEndIndex => Math.Min(submissionBatchPage * SubmissionBatchSize, filteredSubmissions.Count);
+    private List<CouncilRequestService.CouncilRequestListItem> FilteredCouncilRequests
+    {
+        get
+        {
+            if (string.Equals(councilRequestStatusFilter, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                return councilRequests;
+            }
+
+            return councilRequests
+                .Where(request => string.Equals(GetCouncilRequestStatusText(request), councilRequestStatusFilter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+    private int TotalCouncilRequestPages => Math.Max(1, (int)Math.Ceiling(FilteredCouncilRequests.Count / (double)CouncilRequestPageSize));
+    private int CouncilRequestStartIndex => FilteredCouncilRequests.Any() ? ((councilRequestPage - 1) * CouncilRequestPageSize) + 1 : 0;
+    private int CouncilRequestEndIndex => Math.Min(councilRequestPage * CouncilRequestPageSize, FilteredCouncilRequests.Count);
+    private IEnumerable<CouncilRequestService.CouncilRequestListItem> PagedCouncilRequests
+    {
+        get
+        {
+            if (councilRequestPage > TotalCouncilRequestPages)
+            {
+                councilRequestPage = TotalCouncilRequestPages;
+            }
+
+            if (councilRequestPage < 1)
+            {
+                councilRequestPage = 1;
+            }
+
+            return FilteredCouncilRequests
+                .Skip((councilRequestPage - 1) * CouncilRequestPageSize)
+                .Take(CouncilRequestPageSize);
+        }
+    }
+    private IEnumerable<SubmissionReportItem> PagedFilteredSubmissions
+    {
+        get
+        {
+            if (submissionBatchPage > TotalSubmissionPages)
+            {
+                submissionBatchPage = TotalSubmissionPages;
+            }
+
+            if (submissionBatchPage < 1)
+            {
+                submissionBatchPage = 1;
+            }
+
+            return filteredSubmissions
+                .Skip((submissionBatchPage - 1) * SubmissionBatchSize)
+                .Take(SubmissionBatchSize);
+        }
+    }
+    
+    // Filter state variables
+    private string filterStatus = "";
+    private string filterCohort = "";
+    private DateTime? filterFromDate = null;
+    private DateTime? filterToDate = null;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        showReportsPanel = string.Equals(uri.Fragment, "#reports", StringComparison.OrdinalIgnoreCase);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        if (query["onboardingSuccess"] == "true")
+        {
+            onboardingSuccessMessage = "Student onboarding recorded successfully.";
+            StateHasChanged();
+        }
+        if (AdminSession.IsAuthenticated)
+        {
+            await LoadPendingSubmissionsAsync();
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        errorMessage = null;
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Username and password are required.";
+            return;
+        }
+
+        isLoggingIn = true;
+
+        try
+        {
+            var (success, message) = await AdminAccess.AuthenticateAsync(username, password);
+
+            if (!success)
+            {
+                await AuditLog.LogAsync(
+                    eventType: "Security",
+                    action: "CentreAdminLoginFailed",
+                    pagePath: "/centre-administrators",
+                    actorRole: "CentreAdmin",
+                    actorUsername: username,
+                    success: false,
+                    details: message ?? "Invalid centre admin credentials provided.");
+
+                errorMessage = message ?? "Invalid administrator credentials.";
+                return;
+            }
+
+            // Get the admin account to store in session
+            var admin = await AdminAccess.GetAdminByUsernameAsync(username);
+            if (admin != null)
+            {
+                AdminSession.SignIn(username, admin.Id, admin.Email, admin.FullName);
+                await AuditLog.LogAsync(
+                    eventType: "Security",
+                    action: "CentreAdminLoginSucceeded",
+                    pagePath: "/centre-administrators",
+                    actorRole: "CentreAdmin",
+                    actorUsername: AdminSession.Username,
+                    success: true,
+                    details: "Centre administrator signed in.");
+
+                password = null;
+                await LoadPendingSubmissionsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during sign in. Please try again.";
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "CentreAdminLoginError",
+                pagePath: "/centre-administrators",
+                actorRole: "CentreAdmin",
+                actorUsername: username,
+                success: false,
+                details: $"Login error: {ex.Message}");
+        }
+        finally
+        {
+            isLoggingIn = false;
+        }
+    }
+
+    private async Task Logout()
+    {
+        await AuditLog.LogAsync(
+            eventType: "Security",
+            action: "CentreAdminLogout",
+            pagePath: "/centre-administrators",
+            actorRole: "CentreAdmin",
+            actorUsername: AdminSession.Username,
+            success: true,
+            details: "Centre administrator signed out.");
+
+        AdminSession.SignOut();
+        allStudents.Clear();
+        allTutors.Clear();
+        allCarers.Clear();
+        pendingStudents.Clear();
+        pendingTutors.Clear();
+        reportRows.Clear();
+        latestSubmissions.Clear();
+        filteredSubmissions.Clear();
+        councilRequests.Clear();
+        tutorTimeOffRequests.Clear();
+        carerStudentTimeOffRequests.Clear();
+        selectedCouncilRequest = null;
+        selectedTutorTimeOffRequest = null;
+        selectedCarerStudentTimeOffRequest = null;
+        reviewedCouncilRequestKeys.Clear();
+        councilRequestDecisionMessage = null;
+        councilDecisionReason = null;
+        councilRequestPage = 1;
+        tutorTimesheets.Clear();
+        selectedStudentChecklist.Clear();
+        selectedStudentAdultLabel = string.Empty;
+        ClearSelectedSubmission();
+        totalSubmissions = 0;
+        overallApprovalRate = 0;
+        overduePendingCount = 0;
+        username = null;
+        password = null;
+        errorMessage = null;
+    }
+
+    private async Task LoadPendingSubmissionsAsync()
+    {
+        allStudents = (await StudentService.GetAllOnboardingsAsync()).ToList();
+        allTutors = (await TutorService.GetAllOnboardingsAsync()).ToList();
+        allCarers = (await CarerService.GetAllOnboardingsAsync()).ToList();
+
+        pendingStudents = allStudents
+            .Where(s => s.Status == OnboardingStatus.Pending)
+            .ToList();
+        pendingTutors = allTutors
+            .Where(t => t.Status == OnboardingStatus.Pending)
+            .ToList();
+
+        await LoadCouncilRequestsAsync();
+        BuildReports();
+        await LoadTutorTimeOffRequestsAsync();
+        await LoadCarerStudentTimeOffRequestsAsync();
+        await LoadTutorTimesheetsAsync();
+    }
+
+    private async Task LoadCouncilRequestsAsync()
+    {
+        councilRequests = (await CouncilRequests.GetRecentRequestsAsync(100))
+            .OrderBy(request => request.ApprovalStatus switch
+            {
+                "Pending" => 0,
+                "Reviewed" => 1,
+                "Declined" => 2,
+                "Approved" => 3,
+                _ => 4
+            })
+            .ThenByDescending(request => request.ReceivedAtUtc)
+            .ToList();
+        reviewedCouncilRequestKeys = councilRequests
+            .Where(request => string.Equals(request.ApprovalStatus, "Reviewed", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(request.ApprovalStatus, "Approved", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(request.ApprovalStatus, "Declined", StringComparison.OrdinalIgnoreCase))
+            .Select(BuildCouncilRequestKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (councilRequestPage > TotalCouncilRequestPages)
+        {
+            councilRequestPage = TotalCouncilRequestPages;
+        }
+
+        if (councilRequestPage < 1)
+        {
+            councilRequestPage = 1;
+        }
+
+        if (selectedCouncilRequest is not null)
+        {
+            var selectedKey = BuildCouncilRequestKey(selectedCouncilRequest);
+            selectedCouncilRequest = councilRequests.FirstOrDefault(r => BuildCouncilRequestKey(r) == selectedKey);
+        }
+    }
+
+    private void GoToPreviousCouncilRequestPage()
+    {
+        if (councilRequestPage > 1)
+        {
+            councilRequestPage--;
+        }
+    }
+
+    private void OnCouncilRequestStatusFilterChanged()
+    {
+        councilRequestPage = 1;
+
+        if (selectedCouncilRequest is not null)
+        {
+            var selectedKey = BuildCouncilRequestKey(selectedCouncilRequest);
+            if (!FilteredCouncilRequests.Any(request => BuildCouncilRequestKey(request) == selectedKey))
+            {
+                selectedCouncilRequest = null;
+            }
+        }
+    }
+
+    private void GoToNextCouncilRequestPage()
+    {
+        if (councilRequestPage < TotalCouncilRequestPages)
+        {
+            councilRequestPage++;
+        }
+    }
+
+    private async Task PromptAndAcceptCouncilRequestAsync(CouncilRequestService.CouncilRequestListItem? request)
+    {
+        if (request is null)
+        {
+            councilRequestDecisionMessage = "Select a valid council request first.";
+            return;
+        }
+
+        await AcceptCouncilRequestAsync(request);
+    }
+
+    private async Task AcceptCouncilRequestAsync(CouncilRequestService.CouncilRequestListItem request, string? notes = null)
+    {
+        SetSelectedCouncilRequest(request);
+
+        if (isSavingCouncilRequestDecision || request.RequestLogId <= 0)
+        {
+            return;
+        }
+
+        if (IsCouncilRequestDeclined(request))
+        {
+            councilRequestDecisionMessage = "Declined requests cannot be accepted.";
+            return;
+        }
+
+        isSavingCouncilRequestDecision = true;
+        try
+        {
+            var reviewer = string.IsNullOrWhiteSpace(AdminSession.Username)
+                ? "centre-admin"
+                : AdminSession.Username;
+
+            var result = await CouncilRequests.ApproveRequestAsync(request.RequestLogId, reviewer, councilDecisionReason);
+            councilRequestDecisionMessage = result.Message;
+
+            if (!result.Success)
+            {
+                return;
+            }
+
+            reviewedCouncilRequestKeys.Add(BuildCouncilRequestKey(request));
+            await LoadCouncilRequestsAsync();
+            if (selectedCouncilRequest is not null)
+            {
+                var selectedKey = BuildCouncilRequestKey(selectedCouncilRequest);
+                SetSelectedCouncilRequest(councilRequests.FirstOrDefault(r => BuildCouncilRequestKey(r) == selectedKey));
+            }
+        }
+        finally
+        {
+            isSavingCouncilRequestDecision = false;
+        }
+    }
+
+    private async Task PromptAndDeclineCouncilRequestAsync(CouncilRequestService.CouncilRequestListItem? request)
+    {
+        if (request is null)
+        {
+            councilRequestDecisionMessage = "Select a valid council request first.";
+            return;
+        }
+
+        await DeclineCouncilRequestAsync(request);
+    }
+
+    private async Task DeclineCouncilRequestAsync(CouncilRequestService.CouncilRequestListItem request, string? notes = null)
+    {
+        SetSelectedCouncilRequest(request);
+
+        if (isSavingCouncilRequestDecision || request.RequestLogId <= 0)
+        {
+            return;
+        }
+
+        if (IsCouncilRequestApproved(request))
+        {
+            councilRequestDecisionMessage = "Accepted requests cannot be declined.";
+            return;
+        }
+
+        isSavingCouncilRequestDecision = true;
+        try
+        {
+            var reviewer = string.IsNullOrWhiteSpace(AdminSession.Username)
+                ? "centre-admin"
+                : AdminSession.Username;
+
+            var result = await CouncilRequests.DeclineRequestAsync(request.RequestLogId, reviewer, councilDecisionReason);
+            councilRequestDecisionMessage = result.Message;
+
+            if (!result.Success)
+            {
+                return;
+            }
+
+            reviewedCouncilRequestKeys.Add(BuildCouncilRequestKey(request));
+            await LoadCouncilRequestsAsync();
+            if (selectedCouncilRequest is not null)
+            {
+                var selectedKey = BuildCouncilRequestKey(selectedCouncilRequest);
+                SetSelectedCouncilRequest(councilRequests.FirstOrDefault(r => BuildCouncilRequestKey(r) == selectedKey));
+            }
+        }
+        finally
+        {
+            isSavingCouncilRequestDecision = false;
+        }
+    }
+
+    private void ViewCouncilRequest(CouncilRequestService.CouncilRequestListItem request)
+    {
+        SetSelectedCouncilRequest(request);
+        adminUserManagementMessage = null;
+    }
+
+    private async Task CreateUserAccountAsync()
+    {
+        adminUserManagementMessage = null;
+
+        if (isCreatingAdditionalAdminUser)
+        {
+            return;
+        }
+
+        isCreatingAdditionalAdminUser = true;
+        try
+        {
+            if (string.Equals(selectedUserCreationType, "Admin", StringComparison.Ordinal))
+            {
+                var result = await AdminAccess.CreateAdminAccountAsync(
+                    additionalAdminUsername ?? string.Empty,
+                    additionalAdminPassword ?? string.Empty,
+                    additionalAdminEmail ?? string.Empty,
+                    additionalAdminFullName ?? string.Empty);
+
+                adminUserManagementMessage = FormatUserCreationMessage(result.message, result.success);
+                if (!result.success)
+                {
+                    return;
+                }
+            }
+            else if (string.Equals(selectedUserCreationType, "Tutor", StringComparison.Ordinal))
+            {
+                var result = await TutorPortal.RegisterAsync(
+                    0,
+                    additionalAdminEmail ?? string.Empty,
+                    additionalAdminUsername ?? string.Empty,
+                    additionalAdminPassword ?? string.Empty);
+
+                adminUserManagementMessage = FormatUserCreationMessage(result.Message, result.Success);
+                if (!result.Success)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                var result = await CarerPortal.RegisterAsync(
+                    additionalAccountReferenceId ?? string.Empty,
+                    additionalAdminEmail ?? string.Empty,
+                    additionalAdminUsername ?? string.Empty,
+                    additionalAdminPassword ?? string.Empty);
+
+                adminUserManagementMessage = FormatUserCreationMessage(result.Message, result.Success);
+                if (!result.Success)
+                {
+                    return;
+                }
+            }
+
+            additionalAdminFullName = string.Empty;
+            additionalAdminEmail = string.Empty;
+            additionalAdminUsername = string.Empty;
+            additionalAdminPassword = string.Empty;
+            additionalAccountReferenceId = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            adminUserManagementMessage = FormatUserCreationMessage(ex.Message, false);
+        }
+        finally
+        {
+            isCreatingAdditionalAdminUser = false;
+        }
+    }
+
+    private static string FormatUserCreationMessage(string? message, bool isSuccess)
+    {
+        if (isSuccess)
+        {
+            return string.IsNullOrWhiteSpace(message)
+                ? "Account created successfully."
+                : message;
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return "Unable to create account. Please check the details and try again.";
+        }
+
+        var trimmed = message.Trim();
+        const string prefix = "Unable to create account:";
+        if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[prefix.Length..].Trim();
+        }
+
+        if (trimmed.Contains("could not be translated", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("StringComparison", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("DbSet<", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("go.microsoft.com/fwlink", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Unable to create account due to a temporary system error. Please try again in a moment.";
+        }
+
+        return trimmed;
+    }
+
+    private bool IsCouncilRequestReviewed(CouncilRequestService.CouncilRequestListItem request)
+    {
+        return reviewedCouncilRequestKeys.Contains(BuildCouncilRequestKey(request));
+    }
+
+    private bool IsCouncilRequestApproved(CouncilRequestService.CouncilRequestListItem request)
+    {
+        return string.Equals(request.ApprovalStatus, "Approved", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsCouncilRequestDeclined(CouncilRequestService.CouncilRequestListItem? request)
+    {
+        return request is not null && string.Equals(request.ApprovalStatus, "Declined", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetCouncilRequestStatusText(CouncilRequestService.CouncilRequestListItem request)
+    {
+        if (IsCouncilRequestApproved(request))
+        {
+            return "Accepted";
+        }
+
+        if (IsCouncilRequestDeclined(request))
+        {
+            return "Declined";
+        }
+
+        return IsCouncilRequestReviewed(request) ? "Reviewed" : "Pending";
+    }
+
+    private string GetCouncilRequestStatusCss(CouncilRequestService.CouncilRequestListItem request)
+    {
+        if (IsCouncilRequestApproved(request))
+        {
+            return "status-ok";
+        }
+
+        if (IsCouncilRequestDeclined(request))
+        {
+            return "status-blocked";
+        }
+
+        return IsCouncilRequestReviewed(request) ? "status-in-progress" : "status-pending";
+    }
+
+    private bool CanApproveCouncilRequest(CouncilRequestService.CouncilRequestListItem? request)
+    {
+        return request is not null && !IsCouncilRequestApproved(request) && !IsCouncilRequestDeclined(request);
+    }
+
+    private static string BuildCouncilRequestKey(CouncilRequestService.CouncilRequestListItem request)
+    {
+        return string.Join(
+            "|",
+            request.ReceivedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            request.StudentIdentifier,
+            request.RepresentativeName,
+            request.CouncilName,
+            request.RequestType);
+    }
+
+    private void SetSelectedCouncilRequest(CouncilRequestService.CouncilRequestListItem? request)
+    {
+        selectedCouncilRequest = request;
+        councilDecisionReason = null;
+    }
+
+    private void ClearSelectedCouncilRequest()
+    {
+        selectedCouncilRequest = null;
+        councilDecisionReason = null;
+        councilRequestDecisionMessage = null;
+    }
+
+    private async Task LoadTutorTimeOffRequestsAsync()
+    {
+        tutorTimeOffRequests = await TutorPortal.GetTimeOffApprovalQueueAsync(150);
+
+        if (selectedTutorTimeOffRequest is not null)
+        {
+            selectedTutorTimeOffRequest = tutorTimeOffRequests.FirstOrDefault(x => x.RequestLogId == selectedTutorTimeOffRequest.RequestLogId);
+        }
+    }
+
+    private async Task LoadCarerStudentTimeOffRequestsAsync()
+    {
+        carerStudentTimeOffRequests = await CarerPortal.GetStudentTimeOffApprovalQueueAsync(180);
+
+        if (selectedCarerStudentTimeOffRequest is not null)
+        {
+            selectedCarerStudentTimeOffRequest = carerStudentTimeOffRequests.FirstOrDefault(x => x.RequestLogId == selectedCarerStudentTimeOffRequest.RequestLogId);
+        }
+    }
+
+    private void SelectTutorTimeOffRequest(TutorTimeOffApprovalQueueItem request)
+    {
+        selectedTutorTimeOffRequest = request;
+        timeOffReviewNotes = request.ReviewNotes;
+        timeOffDecisionMessage = null;
+    }
+
+    private void ClearSelectedTutorTimeOffRequest()
+    {
+        selectedTutorTimeOffRequest = null;
+        timeOffReviewNotes = null;
+    }
+
+    private void SelectCarerStudentTimeOffRequest(CarerStudentTimeOffApprovalQueueItem request)
+    {
+        selectedCarerStudentTimeOffRequest = request;
+        carerTimeOffReviewNotes = request.ReviewNotes;
+        carerTimeOffDecisionMessage = null;
+    }
+
+    private void ClearSelectedCarerStudentTimeOffRequest()
+    {
+        selectedCarerStudentTimeOffRequest = null;
+        carerTimeOffReviewNotes = null;
+    }
+
+    private Task ApproveTutorTimeOffRequestAsync(TutorTimeOffApprovalQueueItem request)
+    {
+        selectedTutorTimeOffRequest = request;
+        return SaveTutorTimeOffDecisionAsync("Approved");
+    }
+
+    private Task RejectTutorTimeOffRequestAsync(TutorTimeOffApprovalQueueItem request)
+    {
+        selectedTutorTimeOffRequest = request;
+        return SaveTutorTimeOffDecisionAsync("Rejected");
+    }
+
+    private Task ApproveSelectedTutorTimeOffRequestAsync()
+    {
+        return SaveTutorTimeOffDecisionAsync("Approved");
+    }
+
+    private Task RejectSelectedTutorTimeOffRequestAsync()
+    {
+        return SaveTutorTimeOffDecisionAsync("Rejected");
+    }
+
+    private Task ApproveCarerStudentTimeOffRequestAsync(CarerStudentTimeOffApprovalQueueItem request)
+    {
+        selectedCarerStudentTimeOffRequest = request;
+        return SaveCarerStudentTimeOffDecisionAsync("Approved");
+    }
+
+    private Task RejectCarerStudentTimeOffRequestAsync(CarerStudentTimeOffApprovalQueueItem request)
+    {
+        selectedCarerStudentTimeOffRequest = request;
+        return SaveCarerStudentTimeOffDecisionAsync("Rejected");
+    }
+
+    private Task ApproveSelectedCarerStudentTimeOffRequestAsync()
+    {
+        return SaveCarerStudentTimeOffDecisionAsync("Approved");
+    }
+
+    private Task RejectSelectedCarerStudentTimeOffRequestAsync()
+    {
+        return SaveCarerStudentTimeOffDecisionAsync("Rejected");
+    }
+
+    private async Task SaveTutorTimeOffDecisionAsync(string status)
+    {
+        if (selectedTutorTimeOffRequest is null)
+        {
+            timeOffDecisionMessage = "Select a request first.";
+            return;
+        }
+
+        if (IsTimeOffDecisionLocked(selectedTutorTimeOffRequest.ApprovalStatus))
+        {
+            timeOffDecisionMessage = "This request has already been reviewed.";
+            return;
+        }
+
+        if (isSavingTimeOffDecision)
+        {
+            return;
+        }
+
+        isSavingTimeOffDecision = true;
+        try
+        {
+            var reviewedBy = string.IsNullOrWhiteSpace(AdminSession.Username)
+                ? "centre-admin"
+                : AdminSession.Username;
+
+            var result = await TutorPortal.UpdateTimeOffRequestStatusAsync(
+                selectedTutorTimeOffRequest.RequestLogId,
+                reviewedBy,
+                status,
+                timeOffReviewNotes);
+
+            timeOffDecisionMessage = result.Message;
+            if (!result.Success)
+            {
+                return;
+            }
+
+            await LoadTutorTimeOffRequestsAsync();
+            if (selectedTutorTimeOffRequest is not null)
+            {
+                selectedTutorTimeOffRequest = tutorTimeOffRequests.FirstOrDefault(x => x.RequestLogId == selectedTutorTimeOffRequest.RequestLogId);
+            }
+        }
+        finally
+        {
+            isSavingTimeOffDecision = false;
+        }
+    }
+
+    private async Task SaveCarerStudentTimeOffDecisionAsync(string status)
+    {
+        if (selectedCarerStudentTimeOffRequest is null)
+        {
+            carerTimeOffDecisionMessage = "Select a request first.";
+            return;
+        }
+
+        if (IsTimeOffDecisionLocked(selectedCarerStudentTimeOffRequest.ApprovalStatus))
+        {
+            carerTimeOffDecisionMessage = "This request has already been reviewed.";
+            return;
+        }
+
+        if (isSavingCarerTimeOffDecision)
+        {
+            return;
+        }
+
+        isSavingCarerTimeOffDecision = true;
+        try
+        {
+            var reviewedBy = string.IsNullOrWhiteSpace(AdminSession.Username)
+                ? "centre-admin"
+                : AdminSession.Username;
+
+            var result = await CarerPortal.UpdateStudentTimeOffRequestStatusAsync(
+                selectedCarerStudentTimeOffRequest.RequestLogId,
+                reviewedBy,
+                status,
+                carerTimeOffReviewNotes);
+
+            carerTimeOffDecisionMessage = result.Message;
+            if (!result.Success)
+            {
+                return;
+            }
+
+            await LoadCarerStudentTimeOffRequestsAsync();
+            if (selectedCarerStudentTimeOffRequest is not null)
+            {
+                selectedCarerStudentTimeOffRequest = carerStudentTimeOffRequests.FirstOrDefault(x => x.RequestLogId == selectedCarerStudentTimeOffRequest.RequestLogId);
+            }
+        }
+        finally
+        {
+            isSavingCarerTimeOffDecision = false;
+        }
+    }
+
+    private async Task LoadTutorTimesheetsAsync()
+    {
+        tutorTimesheets = await TutorPortal.GetAllTutorMonthlyTimesheetsAsync(120);
+        BuildAttendanceVisuals();
+    }
+
+    private void DownloadTutorTimesheetsPdf()
+    {
+        Navigation.NavigateTo("/api/timesheets/all/pdf", forceLoad: true);
+    }
+
+    private void DownloadTutorTimesheetsExcel()
+    {
+        Navigation.NavigateTo("/api/timesheets/all/excel", forceLoad: true);
+    }
+
+    private void DownloadTutorTimesheetPdf(int tutorOnboardingId, int year, int month)
+    {
+        Navigation.NavigateTo($"/api/timesheets/tutor/{tutorOnboardingId}/{year}/{month}/pdf", forceLoad: true);
+    }
+
+    private void DownloadTutorTimesheetExcel(int tutorOnboardingId, int year, int month)
+    {
+        Navigation.NavigateTo($"/api/timesheets/tutor/{tutorOnboardingId}/{year}/{month}/excel", forceLoad: true);
+    }
+
+    private Task RefreshReportsAsync() => LoadPendingSubmissionsAsync();
+
+    private static bool IsTimeOffDecisionLocked(string? approvalStatus)
+    {
+        return !string.Equals(approvalStatus, "Pending", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void BuildReports()
+    {
+        // Check if data has changed before recalculating
+        if (allStudents == null || allTutors == null || allCarers == null)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+
+        totalSubmissions = allStudents.Count + allTutors.Count;
+        var approvedCount = allStudents.Count(s => s.Status == OnboardingStatus.Approved)
+            + allTutors.Count(t => t.Status == OnboardingStatus.Approved);
+
+        overallApprovalRate = totalSubmissions == 0
+            ? 0
+            : (int)Math.Round((double)approvedCount * 100 / totalSubmissions);
+
+        overduePendingCount = pendingStudents.Count(s => (now - s.SubmittedDate).TotalDays > 7)
+            + pendingTutors.Count(t => (now - t.SubmittedDate).TotalDays > 7);
+
+        reportRows = new List<ReportRow>
+        {
+            BuildRow("Students", allStudents.Select(s => s.Status)),
+            BuildRow("Tutors", allTutors.Select(t => t.Status))
+        };
+
+        latestSubmissions = allStudents
+            .Select(s => new SubmissionReportItem("Student", s.Id.ToString(CultureInfo.InvariantCulture), $"{s.FirstName} {s.LastName}".Trim(), s.Status.ToString(), s.SubmittedDate, (int)Math.Max(0, (now - s.SubmittedDate).TotalDays)))
+            .Concat(allTutors.Select(t => new SubmissionReportItem("Tutor", t.Id.ToString(CultureInfo.InvariantCulture), $"{t.FirstName} {t.LastName}".Trim(), t.Status.ToString(), t.SubmittedDate, (int)Math.Max(0, (now - t.SubmittedDate).TotalDays))))
+            .OrderByDescending(i => i.SubmittedAt)
+            .ToList();
+
+        // Apply filters after building the base list
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        filteredSubmissions = latestSubmissions
+            .Where(item =>
+            {
+                // Filter by status
+                if (!string.IsNullOrEmpty(filterStatus) && item.Status != filterStatus)
+                {
+                    return false;
+                }
+
+                // Filter by cohort
+                if (!string.IsNullOrEmpty(filterCohort) && !string.Equals(item.Cohort, filterCohort, StringComparison.Ordinal))
+                    return false;
+
+                // Filter by date range
+                if (filterFromDate.HasValue && item.SubmittedAt < filterFromDate.Value)
+                    return false;
+                if (filterToDate.HasValue && item.SubmittedAt > filterToDate.Value.AddDays(1))
+                    return false;
+
+                return true;
+            })
+            .ToList();
+
+            submissionBatchPage = 1;
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        ApplyFilters();
+        return Task.CompletedTask;
+    }
+
+    private void NextSubmissionPage()
+    {
+        if (submissionBatchPage < TotalSubmissionPages)
+        {
+            submissionBatchPage++;
+        }
+    }
+
+    private void PreviousSubmissionPage()
+    {
+        if (submissionBatchPage > 1)
+        {
+            submissionBatchPage--;
+        }
+    }
+
+    private void ResetFilters()
+    {
+        filterStatus = "";
+        filterCohort = "";
+        filterFromDate = null;
+        filterToDate = null;
+        ApplyFilters();
+    }
+
+    private static ReportRow BuildRow(string cohort, IEnumerable<OnboardingStatus> statuses)
+    {
+        var statusList = statuses.ToList();
+        var total = statusList.Count;
+        var pending = statusList.Count(s => s == OnboardingStatus.Pending);
+        var approved = statusList.Count(s => s == OnboardingStatus.Approved || s == OnboardingStatus.Completed);
+        var blocked = statusList.Count(s => s == OnboardingStatus.Rejected || s == OnboardingStatus.Suspended);
+        var approvalRate = total == 0 ? 0 : (int)Math.Round((double)approved * 100 / total);
+
+        return new ReportRow(cohort, total, pending, approved, blocked, approvalRate);
+    }
+
+    private static string GetStatusCss(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "approved" or "completed" => "status-ok",
+            "rejected" or "suspended" => "status-risk",
+            _ => "status-pending"
+        };
+    }
+
+    private static string TruncateText(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "-";
+        }
+
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength] + "...";
+    }
+
+    private void NavigateToAdminReview()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            errorMessage = "Sign in as centre administrator to access onboarding review.";
+            return;
+        }
+
+        Navigation.NavigateTo("/admin-review");
+    }
+
+    private void NavigateToStudentOnboarding()
+    {
+        if (!AdminSession.CanOnboardStudents)
+        {
+            errorMessage = "Administrator privilege required to onboard students.";
+            return;
+        }
+
+        Navigation.NavigateTo("/student-onboarding");
+    }
+
+    private void NavigateToTutorOnboarding()
+    {
+        if (!AdminSession.CanOnboardTutors)
+        {
+            errorMessage = "Administrator privilege required to onboard tutors.";
+            return;
+        }
+
+        Navigation.NavigateTo("/tutor-onboarding");
+    }
+
+    private void NavigateToCompliance()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            errorMessage = "Sign in as centre administrator to access audit and compliance logs.";
+            return;
+        }
+
+        Navigation.NavigateTo("/audit-logs");
+    }
+
+    private async Task NavigateToReportsAsync()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            errorMessage = "Sign in as centre administrator to access reports.";
+            return;
+        }
+
+        showReportsPanel = true;
+        await RefreshReportsAsync();
+        Navigation.NavigateTo("/centre-administrators#reports", forceLoad: false);
+    }
+
+    private void ViewSubmissionDetails(SubmissionReportItem item)
+    {
+        selectedSubmissionCohort = item.Cohort;
+        selectedSubmissionRecordId = item.RecordId;
+        isEditingSelectedSubmission = false;
+        selectedSubmissionEditMessage = null;
+
+        switch (item.Cohort)
+        {
+            case "Student":
+            {
+                var student = allStudents.FirstOrDefault(s => s.Id.ToString(CultureInfo.InvariantCulture) == item.RecordId);
+                if (student is null)
+                {
+                    SetMissingSubmissionDetails(item);
+                    return;
+                }
+
+                selectedSubmissionTitle = $"Student Details: {student.FirstName} {student.LastName}".Trim();
+                selectedSubmissionSubtitle = $"Submitted {student.SubmittedDate:dd MMM yyyy} · Status {student.Status}";
+                selectedStudentAdultLabel = GetApplicableAdultLabel(student.RelationshipToStudent);
+                selectedStudentChecklist = BuildStudentChecklist(student);
+                selectedSubmissionDetails = new()
+                {
+                    new("Student ID", DisplayValue(student.StudentId)),
+                    new("Date of Birth", FormatDate(student.DateOfBirth)),
+                    new("Gender", DisplayValue(student.Gender)),
+                    new("Emergency Contact", DisplayValue(student.EmergencyContactName)),
+                    new("Emergency Contact Phone", DisplayValue(student.EmergencyContactPhone)),
+                    new("Emergency Contact Email", DisplayValue(student.EmergencyContactEmail)),
+                    new("Relationship", DisplayValue(student.RelationshipToStudent)),
+                    new("SEN Indicators", DisplayValue(student.SENIndicators)),
+                    new("EHCP Status", DisplayValue(student.EHCPStatus)),
+                    new("Assigned Tutor", DisplayValue(student.AssignedTutorName)),
+                    new("Preferred Contact Method", DisplayValue(student.PreferredContactMethod)),
+                    new("Admin Notes", DisplayValue(student.AdminNotes))
+                };
+                return;
+            }
+            case "Tutor":
+            {
+                var tutor = allTutors.FirstOrDefault(t => t.Id.ToString(CultureInfo.InvariantCulture) == item.RecordId);
+                if (tutor is null)
+                {
+                    SetMissingSubmissionDetails(item);
+                    return;
+                }
+
+                selectedSubmissionTitle = $"Tutor Details: {tutor.FirstName} {tutor.LastName}".Trim();
+                selectedSubmissionSubtitle = $"Submitted {tutor.SubmittedDate:dd MMM yyyy} · Status {tutor.Status}";
+                selectedStudentChecklist.Clear();
+                selectedStudentAdultLabel = string.Empty;
+                selectedSubmissionDetails = new()
+                {
+                    new("Email", DisplayValue(tutor.Email)),
+                    new("Phone", DisplayValue(tutor.Phone)),
+                    new("Address", DisplayValue(tutor.Address)),
+                    new("Date of Birth", FormatDate(tutor.DateOfBirth)),
+                    new("Gender", DisplayValue(tutor.Gender)),
+                    new("Highest Qualification", DisplayValue(tutor.HighestQualification)),
+                    new("Teaching Experience", DisplayValue(tutor.TeachingExperience)),
+                    new("Courses To Be Taken", DisplayValue(tutor.CoursesToBeTaken)),
+                    new("DBS Status", DisplayValue(tutor.DBSStatus)),
+                    new("Right To Work", DisplayValue(tutor.RightToWorkStatus)),
+                    new("Safeguarding Training", DisplayValue(tutor.SafeguardingTrainingStatus)),
+                    new("Contract Type", DisplayValue(tutor.ContractType)),
+                    new("Admin Notes", DisplayValue(tutor.AdminNotes))
+                };
+                return;
+            }
+            case "Carer":
+            {
+                var carer = allCarers.FirstOrDefault(c => string.Equals(c.CarerId, item.RecordId, StringComparison.OrdinalIgnoreCase));
+                if (carer is null)
+                {
+                    SetMissingSubmissionDetails(item);
+                    return;
+                }
+
+                selectedSubmissionTitle = $"Carer Details: {carer.FirstName} {carer.LastName}".Trim();
+                selectedSubmissionSubtitle = $"Submitted {carer.CreatedAt:dd MMM yyyy} · Status {carer.Status}";
+                selectedStudentChecklist.Clear();
+                selectedStudentAdultLabel = string.Empty;
+                selectedSubmissionDetails = new()
+                {
+                    new("Carer ID", DisplayValue(carer.CarerId)),
+                    new("Email", DisplayValue(carer.Email)),
+                    new("Phone", DisplayValue(carer.PhoneNumber)),
+                    new("Address", DisplayValue(carer.Address)),
+                    new("Student Name", DisplayValue(carer.StudentName)),
+                    new("Student ID", DisplayValue(carer.StudentId)),
+                    new("Relationship", DisplayValue(carer.Relationship)),
+                    new("EHCP Status", DisplayValue(carer.EHCPStatus)),
+                    new("Preferred Contact Method", DisplayValue(carer.PreferredContactMethod)),
+                    new("Emergency Contact", DisplayValue(carer.EmergencyContactName)),
+                    new("Emergency Contact Phone", DisplayValue(carer.EmergencyContactPhone)),
+                    new("Approval Notes", DisplayValue(carer.ApprovalNotes))
+                };
+                return;
+            }
+            default:
+                SetMissingSubmissionDetails(item);
+                return;
+        }
+    }
+
+    private void BeginEditSelectedSubmission()
+    {
+        if (string.IsNullOrWhiteSpace(selectedSubmissionCohort) || string.IsNullOrWhiteSpace(selectedSubmissionRecordId))
+        {
+            selectedSubmissionEditMessage = "Select a submission before editing.";
+            return;
+        }
+
+        selectedSubmissionEditMessage = null;
+
+        if (!LoadSelectedSubmissionEditor())
+        {
+            selectedSubmissionEditMessage = "Unable to load the selected record for editing.";
+            return;
+        }
+
+        isEditingSelectedSubmission = true;
+    }
+
+    private void CancelEditSelectedSubmission()
+    {
+        isEditingSelectedSubmission = false;
+        selectedSubmissionEditMessage = null;
+        LoadSelectedSubmissionEditor();
+    }
+
+    private bool LoadSelectedSubmissionEditor()
+    {
+        if (string.IsNullOrWhiteSpace(selectedSubmissionCohort) || string.IsNullOrWhiteSpace(selectedSubmissionRecordId))
+        {
+            return false;
+        }
+
+        switch (selectedSubmissionCohort)
+        {
+            case "Student":
+            {
+                var student = allStudents.FirstOrDefault(s => s.Id.ToString(CultureInfo.InvariantCulture) == selectedSubmissionRecordId);
+                if (student is null)
+                {
+                    return false;
+                }
+
+                studentEdit = new StudentSubmissionEditModel
+                {
+                    FirstName = student.FirstName,
+                    LastName = student.LastName,
+                    StudentId = student.StudentId,
+                    DateOfBirth = student.DateOfBirth,
+                    Gender = student.Gender,
+                    EmergencyContactName = student.EmergencyContactName,
+                    EmergencyContactPhone = student.EmergencyContactPhone,
+                    EmergencyContactEmail = student.EmergencyContactEmail,
+                    RelationshipToStudent = student.RelationshipToStudent,
+                    SENIndicators = student.SENIndicators,
+                    EHCPStatus = student.EHCPStatus,
+                    AssignedTutorName = student.AssignedTutorName,
+                    PreferredContactMethod = student.PreferredContactMethod,
+                    AdminNotes = student.AdminNotes
+                };
+
+                return true;
+            }
+            case "Tutor":
+            {
+                var tutor = allTutors.FirstOrDefault(t => t.Id.ToString(CultureInfo.InvariantCulture) == selectedSubmissionRecordId);
+                if (tutor is null)
+                {
+                    return false;
+                }
+
+                tutorEdit = new TutorSubmissionEditModel
+                {
+                    FirstName = tutor.FirstName,
+                    LastName = tutor.LastName,
+                    Email = tutor.Email,
+                    Phone = tutor.Phone,
+                    Address = tutor.Address,
+                    DateOfBirth = tutor.DateOfBirth,
+                    Gender = tutor.Gender,
+                    HighestQualification = tutor.HighestQualification,
+                    TeachingExperience = tutor.TeachingExperience,
+                    CoursesToBeTaken = tutor.CoursesToBeTaken,
+                    DBSStatus = tutor.DBSStatus,
+                    RightToWorkStatus = tutor.RightToWorkStatus,
+                    SafeguardingTrainingStatus = tutor.SafeguardingTrainingStatus,
+                    ContractType = tutor.ContractType,
+                    AdminNotes = tutor.AdminNotes
+                };
+
+                return true;
+            }
+            case "Carer":
+            {
+                var carer = allCarers.FirstOrDefault(c => string.Equals(c.CarerId, selectedSubmissionRecordId, StringComparison.OrdinalIgnoreCase));
+                if (carer is null)
+                {
+                    return false;
+                }
+
+                carerEdit = new CarerSubmissionEditModel
+                {
+                    FirstName = carer.FirstName,
+                    LastName = carer.LastName,
+                    Email = carer.Email,
+                    PhoneNumber = carer.PhoneNumber,
+                    Address = carer.Address,
+                    StudentName = carer.StudentName,
+                    StudentId = carer.StudentId,
+                    Relationship = carer.Relationship,
+                    EHCPStatus = carer.EHCPStatus,
+                    PreferredContactMethod = carer.PreferredContactMethod,
+                    EmergencyContactName = carer.EmergencyContactName,
+                    EmergencyContactPhone = carer.EmergencyContactPhone,
+                    ApprovalNotes = carer.ApprovalNotes
+                };
+
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
+    private async Task SaveSelectedSubmissionAsync()
+    {
+        if (isSavingSelectedSubmission)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedSubmissionCohort) || string.IsNullOrWhiteSpace(selectedSubmissionRecordId))
+        {
+            selectedSubmissionEditMessage = "No submission selected.";
+            return;
+        }
+
+        isSavingSelectedSubmission = true;
+        selectedSubmissionEditMessage = null;
+
+        try
+        {
+            var changedBy = string.IsNullOrWhiteSpace(AdminSession.Username)
+                ? "PortalUser"
+                : AdminSession.Username;
+
+            var saved = false;
+
+            switch (selectedSubmissionCohort)
+            {
+                case "Student":
+                {
+                    var student = allStudents.FirstOrDefault(s => s.Id.ToString(CultureInfo.InvariantCulture) == selectedSubmissionRecordId);
+                    if (student is null)
+                    {
+                        selectedSubmissionEditMessage = "Student record is no longer available.";
+                        return;
+                    }
+
+                    saved = await StudentService.UpdateOnboardingAsync(student.Id, new StudentAdminUpdateModel
+                    {
+                        FirstName = studentEdit.FirstName,
+                        LastName = studentEdit.LastName,
+                        DateOfBirth = studentEdit.DateOfBirth,
+                        Gender = studentEdit.Gender,
+                        StudentId = studentEdit.StudentId,
+                        EmergencyContactName = studentEdit.EmergencyContactName,
+                        EmergencyContactPhone = studentEdit.EmergencyContactPhone,
+                        EmergencyContactEmail = studentEdit.EmergencyContactEmail,
+                        RelationshipToStudent = studentEdit.RelationshipToStudent,
+                        SENIndicators = studentEdit.SENIndicators,
+                        EHCPStatus = studentEdit.EHCPStatus,
+                        AssignedTutorName = studentEdit.AssignedTutorName,
+                        PreferredContactMethod = studentEdit.PreferredContactMethod,
+                        Status = student.Status,
+                        AdminNotes = studentEdit.AdminNotes
+                    }, changedBy);
+                    break;
+                }
+                case "Tutor":
+                {
+                    var tutor = allTutors.FirstOrDefault(t => t.Id.ToString(CultureInfo.InvariantCulture) == selectedSubmissionRecordId);
+                    if (tutor is null)
+                    {
+                        selectedSubmissionEditMessage = "Tutor record is no longer available.";
+                        return;
+                    }
+
+                    saved = await TutorService.UpdateOnboardingAsync(tutor.Id, new TutorAdminUpdateModel
+                    {
+                        FirstName = tutorEdit.FirstName,
+                        LastName = tutorEdit.LastName,
+                        DateOfBirth = tutorEdit.DateOfBirth,
+                        Gender = tutorEdit.Gender,
+                        Email = tutorEdit.Email,
+                        Phone = tutorEdit.Phone,
+                        Address = tutorEdit.Address,
+                        HighestQualification = tutorEdit.HighestQualification,
+                        TeachingExperience = tutorEdit.TeachingExperience,
+                        CoursesToBeTaken = tutorEdit.CoursesToBeTaken,
+                        DBSStatus = tutorEdit.DBSStatus,
+                        RightToWorkStatus = tutorEdit.RightToWorkStatus,
+                        SafeguardingTrainingStatus = tutorEdit.SafeguardingTrainingStatus,
+                        ContractType = tutorEdit.ContractType,
+                        Status = tutor.Status,
+                        AdminNotes = tutorEdit.AdminNotes
+                    }, changedBy);
+                    break;
+                }
+                case "Carer":
+                {
+                    var carer = allCarers.FirstOrDefault(c => string.Equals(c.CarerId, selectedSubmissionRecordId, StringComparison.OrdinalIgnoreCase));
+                    if (carer is null)
+                    {
+                        selectedSubmissionEditMessage = "Carer record is no longer available.";
+                        return;
+                    }
+
+                    saved = await CarerService.UpdateOnboardingAsync(carer.CarerId ?? string.Empty, new CarerAdminUpdateModel
+                    {
+                        FirstName = carerEdit.FirstName,
+                        LastName = carerEdit.LastName,
+                        Email = carerEdit.Email,
+                        PhoneNumber = carerEdit.PhoneNumber,
+                        Address = carerEdit.Address,
+                        StudentName = carerEdit.StudentName,
+                        StudentId = carerEdit.StudentId,
+                        Relationship = carerEdit.Relationship,
+                        EHCPStatus = carerEdit.EHCPStatus,
+                        PreferredContactMethod = carerEdit.PreferredContactMethod,
+                        EmergencyContactName = carerEdit.EmergencyContactName,
+                        EmergencyContactPhone = carerEdit.EmergencyContactPhone,
+                        Status = carer.Status,
+                        ApprovalNotes = carerEdit.ApprovalNotes
+                    }, changedBy);
+                    break;
+                }
+            }
+
+            if (!saved)
+            {
+                selectedSubmissionEditMessage = "Unable to save changes for the selected record.";
+                return;
+            }
+
+            await LoadPendingSubmissionsAsync();
+            ViewSubmissionDetails(new SubmissionReportItem(
+                selectedSubmissionCohort,
+                selectedSubmissionRecordId,
+                string.Empty,
+                string.Empty,
+                DateTime.UtcNow,
+                0));
+
+            isEditingSelectedSubmission = false;
+            selectedSubmissionEditMessage = "Changes saved successfully.";
+        }
+        catch
+        {
+            selectedSubmissionEditMessage = "An unexpected error occurred while saving changes.";
+        }
+        finally
+        {
+            isSavingSelectedSubmission = false;
+        }
+    }
+
+    private void SetMissingSubmissionDetails(SubmissionReportItem item)
+    {
+        selectedSubmissionTitle = $"{item.Cohort} Details";
+        selectedSubmissionSubtitle = "Record unavailable";
+        selectedSubmissionDetails = new()
+        {
+            new("Selected Record", item.DisplayName),
+            new("Status", item.Status),
+            new("Submitted", item.SubmittedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+            new("Details", "This record could not be resolved from the currently loaded cohort data.")
+        };
+    }
+
+    private void ClearSelectedSubmission()
+    {
+        selectedSubmissionTitle = null;
+        selectedSubmissionSubtitle = null;
+        selectedSubmissionDetails = new();
+        selectedStudentChecklist.Clear();
+        selectedStudentAdultLabel = string.Empty;
+        selectedSubmissionCohort = null;
+        selectedSubmissionRecordId = null;
+        isEditingSelectedSubmission = false;
+        isSavingSelectedSubmission = false;
+        selectedSubmissionEditMessage = null;
+    }
+
+    private static string DisplayValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string FormatDate(DateTime value)
+    {
+        return value == default ? "-" : value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private static string GetApplicableAdultLabel(string? relationship)
+    {
+        if (string.IsNullOrWhiteSpace(relationship))
+        {
+            return "Parent / Carer / Guardian";
+        }
+
+        return relationship.Trim().ToLowerInvariant() switch
+        {
+            "parent" => "Parent",
+            "guardian" => "Guardian",
+            "carer" => "Carer",
+            "parent/guardian" or "parent-guardian" => "Parent / Guardian",
+            "emergency-contact" or "emergency contact" => "Emergency Contact",
+            _ => relationship.Trim()
+        };
+    }
+
+    private static List<StudentChecklistItem> BuildStudentChecklist(StudentOnboardingData student)
+    {
+        return new List<StudentChecklistItem>
+        {
+            new("Applicable adult contact recorded", !string.IsNullOrWhiteSpace(student.EmergencyContactName), DisplayValue(student.EmergencyContactName)),
+            new("Relationship confirmed", !string.IsNullOrWhiteSpace(student.RelationshipToStudent), DisplayValue(GetApplicableAdultLabel(student.RelationshipToStudent))),
+            new("Emergency phone recorded", !string.IsNullOrWhiteSpace(student.EmergencyContactPhone), DisplayValue(student.EmergencyContactPhone)),
+            new("Emergency email recorded", !string.IsNullOrWhiteSpace(student.EmergencyContactEmail), DisplayValue(student.EmergencyContactEmail)),
+            new("Privacy notice acknowledged", student.PrivacyNoticeAcknowledged, student.PrivacyNoticeAcknowledged ? "Acknowledged" : "Not acknowledged"),
+            new("Declaration confirmed", student.DeclarationConfirmed, student.DeclarationConfirmed ? "Confirmed" : "Not confirmed"),
+            new("SEN indicators captured", !string.IsNullOrWhiteSpace(student.SENIndicators), DisplayValue(student.SENIndicators)),
+            new("EHCP status recorded", !string.IsNullOrWhiteSpace(student.EHCPStatus), DisplayValue(student.EHCPStatus)),
+            new("Assigned tutor recorded", !string.IsNullOrWhiteSpace(student.AssignedTutorName), DisplayValue(student.AssignedTutorName)),
+            new("Preferred contact method recorded", !string.IsNullOrWhiteSpace(student.PreferredContactMethod), DisplayValue(student.PreferredContactMethod))
+        };
+    }
+
+    private void BuildAttendanceVisuals()
+    {
+        const int chartLeft = 34;
+        const int chartBottom = 182;
+        const int chartTop = 28;
+        const int barWidth = 72;
+        const int gap = 22;
+
+        attendanceMonthSummaries = tutorTimesheets
+            .GroupBy(item => new { item.Year, item.Month })
+            .Select(group => new AttendanceMonthSummary(
+                group.Key.Year,
+                group.Key.Month,
+                group.Sum(item => item.SessionCount),
+                group.Sum(item => item.TotalHours)))
+            .OrderByDescending(item => item.Year)
+            .ThenByDescending(item => item.Month)
+            .Take(6)
+            .Select(item => item with { IsCurrentMonth = item.Year == DateTime.UtcNow.Year && item.Month == DateTime.UtcNow.Month })
+            .ToList();
+
+        if (attendanceMonthSummaries.Count == 0)
+        {
+            attendanceChartBars = new List<AttendanceChartBar>();
+            currentMonthSessionCount = 0;
+            currentMonthTotalHours = 0;
+            mostRecentAttendanceMonthLabel = "-";
+            return;
+        }
+
+        var chartHeight = chartBottom - chartTop;
+        var maxSessions = Math.Max(1, attendanceMonthSummaries.Max(item => item.SessionCount));
+        var scale = chartHeight / (double)maxSessions;
+
+        attendanceChartBars = attendanceMonthSummaries
+            .Select((item, index) =>
+            {
+                var x = chartLeft + index * (barWidth + gap);
+                var barHeight = Math.Max(6, item.SessionCount * scale);
+                var y = chartBottom - barHeight;
+
+                return new AttendanceChartBar(
+                    x,
+                    y,
+                    barWidth,
+                    barHeight,
+                    x + barWidth / 2,
+                    y - 10,
+                    item.SessionCount,
+                    item.MonthLabel,
+                    item.TotalHours,
+                    item.IsCurrentMonth ? "#0d6efd" : "#1f6f8b",
+                    item.IsCurrentMonth);
+            })
+            .ToList();
+
+        currentMonthSessionCount = tutorTimesheets
+            .Where(item => item.Year == DateTime.UtcNow.Year && item.Month == DateTime.UtcNow.Month)
+            .Sum(item => item.SessionCount);
+
+        currentMonthTotalHours = tutorTimesheets
+            .Where(item => item.Year == DateTime.UtcNow.Year && item.Month == DateTime.UtcNow.Month)
+            .Sum(item => item.TotalHours);
+
+        var mostRecent = attendanceMonthSummaries.FirstOrDefault();
+        mostRecentAttendanceMonthLabel = mostRecent is null
+            ? "-"
+            : new DateTime(mostRecent.Year, mostRecent.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private sealed record ReportRow(string Cohort, int Total, int Pending, int Approved, int Blocked, int ApprovalRate);
+
+    private sealed record SubmissionReportItem(string Cohort, string RecordId, string DisplayName, string Status, DateTime SubmittedAt, int AgeInDays);
+    private sealed record SubmissionDetailField(string Label, string Value);
+    private sealed record AttendanceMonthSummary(int Year, int Month, int SessionCount, double TotalHours)
+    {
+        public string MonthLabel => new DateTime(Year, Month, 1).ToString("MMM", CultureInfo.InvariantCulture);
+        public bool IsCurrentMonth { get; init; }
+    }
+
+    private sealed record AttendanceChartBar(double X, double Y, int Width, double Height, double CenterX, double LabelY, int SessionCount, string MonthLabel, double TotalHours, string Fill, bool IsCurrentMonth);
+
+    private sealed class StudentChecklistItem
+    {
+        public StudentChecklistItem(string label, bool isComplete, string value)
+        {
+            Label = label;
+            IsComplete = isComplete;
+            Value = value;
+        }
+
+        public string Label { get; }
+        public bool IsComplete { get; }
+        public string Value { get; }
+    }
+
+    private sealed class StudentSubmissionEditModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public DateTime DateOfBirth { get; set; }
+        public string? Gender { get; set; }
+        public string? StudentId { get; set; }
+        public string EmergencyContactName { get; set; } = string.Empty;
+        public string EmergencyContactPhone { get; set; } = string.Empty;
+        public string? EmergencyContactEmail { get; set; }
+        public string RelationshipToStudent { get; set; } = string.Empty;
+        public string SENIndicators { get; set; } = string.Empty;
+        public string EHCPStatus { get; set; } = string.Empty;
+        public string? AssignedTutorName { get; set; }
+        public string PreferredContactMethod { get; set; } = string.Empty;
+        public string? AdminNotes { get; set; }
+    }
+
+    private sealed class TutorSubmissionEditModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public DateTime DateOfBirth { get; set; }
+        public string? Gender { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string HighestQualification { get; set; } = string.Empty;
+        public string TeachingExperience { get; set; } = string.Empty;
+        public string? CoursesToBeTaken { get; set; }
+        public string DBSStatus { get; set; } = string.Empty;
+        public string RightToWorkStatus { get; set; } = string.Empty;
+        public string SafeguardingTrainingStatus { get; set; } = string.Empty;
+        public string ContractType { get; set; } = string.Empty;
+        public string? AdminNotes { get; set; }
+    }
+
+    private sealed class CarerSubmissionEditModel
+    {
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? Address { get; set; }
+        public string? StudentName { get; set; }
+        public string? StudentId { get; set; }
+        public string? Relationship { get; set; }
+        public string? EHCPStatus { get; set; }
+        public string? PreferredContactMethod { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public string? ApprovalNotes { get; set; }
+    }
+}

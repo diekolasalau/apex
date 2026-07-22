@@ -1,0 +1,487 @@
+@page "/council-representative-portal"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using StudyMgt.Services
+@inject CouncilRequestService CouncilRequests
+@inject CouncilPortalSession PortalSession
+
+<PageTitle>Council Representative Portal</PageTitle>
+
+<div class="container mt-4 mb-5 council-portal-shell">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <h1>Council Representative Portal</h1>
+            <p class="text-muted mb-0">Submit and manage council requests directly with the centre team.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary" href="/portal-hub">Back to Portal Hub</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success" role="alert">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(submitErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@submitErrorMessage</div>
+    }
+
+        <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header">Centre Contact Points</div>
+                <div class="card-body">
+                    <dl class="mb-0">
+                        <dt>Centre Team Email</dt>
+                        <dd>centre-team@apexeducationservices.co.uk</dd>
+                        <dt>Safeguarding Lead</dt>
+                        <dd>safeguarding@apexeducationservices.co.uk</dd>
+                        <dt>Urgent Line</dt>
+                        <dd>0203 000 1100</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">Council to Centre Request</div>
+                <div class="card-body">
+                    <EditForm Model="request" OnValidSubmit="SubmitRequestAsync" FormName="CouncilRequestForm">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger mb-3" />
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <h5 class="mb-1">Request for Tuition Service</h5>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Name of young person</label>
+                                <InputText class="form-control" @bind-Value="request.YoungPersonName" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">DOB</label>
+                                <InputDate class="form-control" @bind-Value="request.DateOfBirth" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Gender</label>
+                                <InputText class="form-control" @bind-Value="request.Gender" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">First Language</label>
+                                <InputText class="form-control" @bind-Value="request.FirstLanguage" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Address</label>
+                                <InputText class="form-control" @bind-Value="request.Address" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Parent/Carer</label>
+                                <InputText class="form-control" @bind-Value="request.ParentCarer" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Home Tel</label>
+                                <InputText class="form-control" @bind-Value="request.HomeTel" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Mobile</label>
+                                <InputText class="form-control" @bind-Value="request.Mobile" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <InputText type="email" class="form-control" @bind-Value="request.YoungPersonEmail" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Name of last school</label>
+                                <InputText class="form-control" @bind-Value="request.LastSchoolName" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Current Year Group</label>
+                                <InputText class="form-control" @bind-Value="request.CurrentYearGroup" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Type of setting</label>
+                                <InputText class="form-control" @bind-Value="request.SettingType" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">SEND Information</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="request.SendInformation" />
+                            </div>
+                            <div class="col-12 mt-1">
+                                <h6 class="mb-1">Current attainment levels</h6>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="attainmentUnknown" @bind-Value="request.AttainmentUnknown" />
+                                    <label class="form-check-label" for="attainmentUnknown">Unknown</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3 attainment-level-field">
+                                <label class="form-label">Reading</label>
+                                <InputText id="attainmentReading" class="form-control" @bind-Value="request.AttainmentReading" />
+                            </div>
+                            <div class="col-md-3 attainment-level-field">
+                                <label class="form-label">Writing</label>
+                                <InputText id="attainmentWriting" class="form-control" @bind-Value="request.AttainmentWriting" />
+                            </div>
+                            <div class="col-md-3 attainment-level-field">
+                                <label class="form-label">Maths</label>
+                                <InputText id="attainmentMaths" class="form-control" @bind-Value="request.AttainmentMaths" />
+                            </div>
+                            <div class="col-md-3 attainment-level-field">
+                                <label class="form-label">Science</label>
+                                <InputText id="attainmentScience" class="form-control" @bind-Value="request.AttainmentScience" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Total hours required</label>
+                                <InputText class="form-control" @bind-Value="request.TotalHoursRequired" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Daily / weekly</label>
+                                <InputText class="form-control" @bind-Value="request.Frequency" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Days requested</label>
+                                <InputText class="form-control" @bind-Value="request.RequestedDays" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tuition requirements</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="request.TuitionRequirements" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Lesson Location</label>
+                                <InputText class="form-control" @bind-Value="request.LessonLocation" />
+                            </div>
+
+                            <div class="col-12 mt-1">
+                                <h5 class="mb-1">Referring Agency</h5>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Referring Agency</label>
+                                <InputText class="form-control" @bind-Value="request.CouncilName" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date</label>
+                                <InputDate class="form-control" @bind-Value="request.ReferralDate" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Contact Name</label>
+                                <InputText class="form-control" @bind-Value="request.RepresentativeName" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Address</label>
+                                <InputText class="form-control" @bind-Value="request.ReferringAgencyAddress" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tel</label>
+                                <InputText class="form-control" @bind-Value="request.ReferringAgencyTel" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <InputText type="email" class="form-control" @bind-Value="request.Email" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Invoice to be sent to</label>
+                                <InputText class="form-control" @bind-Value="request.InvoiceRecipient" />
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button class="btn btn-primary" type="submit">Send to Centre Team</button>
+                            <button class="btn btn-outline-secondary" type="button" @onclick="ResetForm">Clear</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        function toggleAttainmentFields(container) {
+            const unknownCheckbox = container.querySelector('#attainmentUnknown');
+            if (!unknownCheckbox) {
+                return;
+            }
+
+            const disabled = unknownCheckbox.checked;
+            const attainmentInputIds = ['attainmentReading', 'attainmentWriting', 'attainmentMaths', 'attainmentScience'];
+
+            for (const inputId of attainmentInputIds) {
+                const input = container.querySelector('#' + inputId);
+                if (!input) {
+                    continue;
+                }
+
+                input.disabled = disabled;
+
+                const field = input.closest('.attainment-level-field');
+                if (field) {
+                    field.classList.toggle('attainment-level-field-disabled', disabled);
+                }
+            }
+        }
+
+        function initAttainmentToggle() {
+            const container = document.querySelector('.council-portal-shell');
+            if (!container) {
+                return;
+            }
+
+            if (container.dataset.attainmentToggleInitialized !== 'true') {
+                container.addEventListener('change', function (event) {
+                    const target = event.target;
+                    if (target && target.id === 'attainmentUnknown') {
+                        toggleAttainmentFields(container);
+                    }
+                });
+
+                container.dataset.attainmentToggleInitialized = 'true';
+            }
+
+            toggleAttainmentFields(container);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initAttainmentToggle, { once: true });
+        } else {
+            initAttainmentToggle();
+        }
+
+        document.addEventListener('enhancedload', initAttainmentToggle);
+    })();
+</script>
+
+@code {
+    private CouncilRequestModel request = new();
+    private string? successMessage;
+    private string? submitErrorMessage;
+
+    protected override void OnInitialized()
+    {
+        PrefillCouncilContactDetails();
+    }
+
+    private async Task SubmitRequestAsync()
+    {
+        PrefillCouncilContactDetails();
+        submitErrorMessage = null;
+
+        try
+        {
+            var representativeName = string.IsNullOrWhiteSpace(request.RepresentativeName)
+                ? (PortalSession.DisplayName ?? PortalSession.Username ?? string.Empty)
+                : request.RepresentativeName;
+            var representativeEmail = string.IsNullOrWhiteSpace(request.Email)
+                ? (PortalSession.Email ?? string.Empty)
+                : request.Email;
+            var normalizedStudentIdentifier = string.IsNullOrWhiteSpace(request.StudentIdentifier)
+                ? $"REF-{DateTime.UtcNow:yyyyMMddHHmmss}"
+                : request.StudentIdentifier;
+            var composedDetails =
+                $"Referral Date: {(request.ReferralDate.HasValue ? request.ReferralDate.Value.ToString("yyyy-MM-dd") : "Not provided")}; " +
+                $"Referring Agency Address: {request.ReferringAgencyAddress}; " +
+                $"Referring Agency Tel: {request.ReferringAgencyTel}; " +
+                $"Young Person Email: {request.YoungPersonEmail}; " +
+                $"Attainment Unknown: {(request.AttainmentUnknown ? "Yes" : "No")}.";
+
+            await CouncilRequests.SubmitRequestAsync(new CouncilRequestService.CouncilRequestSubmission
+            {
+                RepresentativeName = representativeName,
+                CouncilName = request.CouncilName,
+                Email = representativeEmail,
+                StudentIdentifier = normalizedStudentIdentifier,
+                YoungPersonName = request.YoungPersonName,
+                DateOfBirth = request.DateOfBirth,
+                Gender = request.Gender,
+                FirstLanguage = request.FirstLanguage,
+                Address = request.Address,
+                ParentCarer = request.ParentCarer,
+                HomeTel = request.HomeTel,
+                Mobile = request.Mobile,
+                LastSchoolName = request.LastSchoolName,
+                CurrentYearGroup = request.CurrentYearGroup,
+                SettingType = request.SettingType,
+                SendInformation = request.SendInformation,
+                AttainmentUnknown = request.AttainmentUnknown,
+                AttainmentReading = request.AttainmentReading,
+                AttainmentWriting = request.AttainmentWriting,
+                AttainmentMaths = request.AttainmentMaths,
+                AttainmentScience = request.AttainmentScience,
+                TotalHoursRequired = request.TotalHoursRequired,
+                Frequency = request.Frequency,
+                RequestedDays = request.RequestedDays,
+                TuitionRequirements = request.TuitionRequirements,
+                LessonLocation = request.LessonLocation,
+                InvoiceRecipient = request.InvoiceRecipient,
+                RequestType = "Tuition Service Request",
+                PreferredContactMethod = "Email",
+                Details = composedDetails,
+                AttachmentNames = Array.Empty<string>()
+            });
+        }
+        catch (ValidationException ex)
+        {
+            successMessage = null;
+            submitErrorMessage = ex.Message;
+            return;
+        }
+
+        successMessage = $"Request received for {request.YoungPersonName}. The centre team will respond by email shortly.";
+        request = new CouncilRequestModel();
+    }
+
+    private void ResetForm()
+    {
+        request = new CouncilRequestModel();
+        successMessage = null;
+        submitErrorMessage = null;
+        PrefillCouncilContactDetails();
+    }
+
+    private void PrefillCouncilContactDetails()
+    {
+        if (PortalSession.IsAuthenticated)
+        {
+            request.RepresentativeName = PortalSession.DisplayName ?? PortalSession.Username ?? request.RepresentativeName;
+            if (!string.IsNullOrWhiteSpace(PortalSession.Email))
+            {
+                request.Email = PortalSession.Email;
+            }
+        }
+
+        if (!request.ReferralDate.HasValue)
+        {
+            request.ReferralDate = DateTime.Today;
+        }
+    }
+
+    private sealed class CouncilRequestModel : IValidatableObject
+    {
+        [Required]
+        public string YoungPersonName { get; set; } = string.Empty;
+
+        [Required]
+        public DateTime? DateOfBirth { get; set; }
+
+        [Required]
+        public string Gender { get; set; } = string.Empty;
+
+        [Required]
+        public string FirstLanguage { get; set; } = string.Empty;
+
+        [Required]
+        public string Address { get; set; } = string.Empty;
+
+        [Required]
+        public string ParentCarer { get; set; } = string.Empty;
+
+        [Required]
+        public string HomeTel { get; set; } = string.Empty;
+
+        [Required]
+        public string Mobile { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string YoungPersonEmail { get; set; } = string.Empty;
+
+        [Required]
+        public string LastSchoolName { get; set; } = string.Empty;
+
+        [Required]
+        public string CurrentYearGroup { get; set; } = string.Empty;
+
+        [Required]
+        public string SettingType { get; set; } = string.Empty;
+
+        [Required]
+        public string SendInformation { get; set; } = string.Empty;
+
+        public string AttainmentReading { get; set; } = string.Empty;
+
+        public string AttainmentWriting { get; set; } = string.Empty;
+
+        public string AttainmentMaths { get; set; } = string.Empty;
+
+        public string AttainmentScience { get; set; } = string.Empty;
+
+        public bool AttainmentUnknown { get; set; }
+
+        [Required]
+        public string TotalHoursRequired { get; set; } = string.Empty;
+
+        [Required]
+        public string Frequency { get; set; } = string.Empty;
+
+        [Required]
+        public string RequestedDays { get; set; } = string.Empty;
+
+        [Required]
+        public string TuitionRequirements { get; set; } = string.Empty;
+
+        [Required]
+        public string LessonLocation { get; set; } = string.Empty;
+
+        [Required]
+        public string InvoiceRecipient { get; set; } = string.Empty;
+
+        [Required]
+        public string RepresentativeName { get; set; } = string.Empty;
+
+        [Required]
+        public string CouncilName { get; set; } = string.Empty;
+
+        [Required]
+        public DateTime? ReferralDate { get; set; } = DateTime.Today;
+
+        [Required]
+        public string ReferringAgencyAddress { get; set; } = string.Empty;
+
+        [Required]
+        public string ReferringAgencyTel { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        public string StudentIdentifier { get; set; } = string.Empty;
+
+        public string RequestType { get; set; } = string.Empty;
+
+        public string PreferredContactMethod { get; set; } = "Email";
+
+        public string Details { get; set; } = string.Empty;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (AttainmentUnknown)
+            {
+                yield break;
+            }
+
+            if (string.IsNullOrWhiteSpace(AttainmentReading))
+            {
+                yield return new ValidationResult("Reading attainment is required unless Unknown is selected.", new[] { nameof(AttainmentReading) });
+            }
+
+            if (string.IsNullOrWhiteSpace(AttainmentWriting))
+            {
+                yield return new ValidationResult("Writing attainment is required unless Unknown is selected.", new[] { nameof(AttainmentWriting) });
+            }
+
+            if (string.IsNullOrWhiteSpace(AttainmentMaths))
+            {
+                yield return new ValidationResult("Maths attainment is required unless Unknown is selected.", new[] { nameof(AttainmentMaths) });
+            }
+
+            if (string.IsNullOrWhiteSpace(AttainmentScience))
+            {
+                yield return new ValidationResult("Science attainment is required unless Unknown is selected.", new[] { nameof(AttainmentScience) });
+            }
+        }
+    }
+}

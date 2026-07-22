@@ -1,0 +1,34 @@
+# Build artifacts
+bin/
+obj/
+
+# User and IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temp files
+*.log
+*.tmp
+run-output.txt
+run-startup.log
+run_attempt.log
+buildlog.txt
+buildlog-utf8.txt
+
+# Local databases and environment-specific files
+*.db
+*.db-shm
+*.db-wal
+appsettings.Development.json
+
+# Test and package outputs
+TestResults/
+artifacts/
+
+# OS files
+Thumbs.db
+desktop.ini

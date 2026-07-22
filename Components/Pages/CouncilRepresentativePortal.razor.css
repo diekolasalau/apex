@@ -1,0 +1,87 @@
+.council-portal-shell {
+    max-width: 1180px;
+    font-size: 0.92rem;
+}
+
+.council-portal-shell .card {
+    border-radius: 0.9rem;
+}
+
+.council-portal-shell .card-header {
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+}
+
+.council-portal-shell .btn,
+.council-portal-shell input,
+.council-portal-shell textarea,
+.council-portal-shell select {
+    min-height: 2.25rem;
+}
+
+.council-portal-shell .d-flex.gap-2,
+.council-portal-shell .d-flex.gap-3 {
+    flex-wrap: wrap;
+}
+
+.council-portal-shell .attainment-level-field-disabled .form-label {
+    color: #7a7f87;
+}
+
+.council-portal-shell .attainment-level-field-disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.council-portal-shell .attainment-level-field-disabled ::deep .form-control {
+    background-color: #eef0f2 !important;
+    color: #6b7280 !important;
+    border-color: #d2d6db !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+    user-select: none !important;
+}
+
+@media (max-width: 1200px) {
+    .council-portal-shell {
+        max-width: 100%;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .council-portal-shell .card-body {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .council-portal-shell .btn {
+        width: 100%;
+    }
+
+    .council-portal-shell .btn-link,
+    .council-portal-shell .btn-outline-primary,
+    .council-portal-shell .btn-outline-secondary,
+    .council-portal-shell .btn-primary {
+        text-align: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .council-portal-shell h1 {
+        font-size: 1.28rem;
+        line-height: 1.2;
+    }
+
+    .council-portal-shell p,
+    .council-portal-shell li,
+    .council-portal-shell label,
+    .council-portal-shell .form-text {
+        font-size: 0.86rem;
+    }
+
+    .council-portal-shell .form-text {
+        font-size: 0.78rem;
+    }
+}

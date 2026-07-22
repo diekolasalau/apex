@@ -1,0 +1,68 @@
+@page "/database-roundtrip"
+@using Microsoft.EntityFrameworkCore
+@using StudyMgt.Data
+@using StudyMgt.Data.Entities
+@inject StudyMgtDbContext DbContext
+
+<PageTitle>Database Round Trip</PageTitle>
+
+<h1>Database Round Trip Test</h1>
+
+<p class="text-muted">This page inserts one row and immediately queries the total row count.</p>
+
+<div class="mb-3">
+    <button class="btn btn-primary" @onclick="RunRoundTripTest" disabled="@isRunning">
+        @(isRunning ? "Testing..." : "Run Round-Trip Test")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (lastInsertedId.HasValue)
+{
+    <div class="alert alert-success">
+        <div><strong>Inserted Row Id:</strong> @lastInsertedId</div>
+        <div><strong>Inserted At (UTC):</strong> @lastInsertedUtc</div>
+        <div><strong>Total Rows:</strong> @totalRows</div>
+    </div>
+}
+
+@code {
+    private bool isRunning;
+    private string? errorMessage;
+    private int? lastInsertedId;
+    private DateTime? lastInsertedUtc;
+    private int totalRows;
+
+    private async Task RunRoundTripTest()
+    {
+        isRunning = true;
+        errorMessage = null;
+
+        try
+        {
+            var row = new DbRoundTripLog
+            {
+                Message = "Round-trip test from UI"
+            };
+
+            DbContext.DbRoundTripLogs.Add(row);
+            await DbContext.SaveChangesAsync();
+
+            totalRows = await DbContext.DbRoundTripLogs.CountAsync();
+            lastInsertedId = row.Id;
+            lastInsertedUtc = row.CreatedUtc;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isRunning = false;
+        }
+    }
+}

@@ -1,0 +1,558 @@
+@page "/tutor-onboarding"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Json
+@using StudyMgt.Services
+@inject TutorOnboardingService OnboardingService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Tutor Onboarding</PageTitle>
+
+<div class="onboarding-container">
+    <div class="onboarding-header">
+        <h1>Tutor Onboarding</h1>
+        <p class="subtitle">Complete your onboarding and manage your tutoring profile</p>
+    </div>
+
+    <FormStatusAlert
+        Type="success"
+        Title="Onboarding Submitted Successfully"
+        Message="@successMessage"
+        OnClose="ClearMessages" />
+
+    <FormStatusAlert
+        Type="error"
+        Title="Submission Error"
+        Message="@errorMessage"
+        OnClose="ClearMessages" />
+
+    <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="TutorOnboardingForm">
+        <DataAnnotationsValidator />
+
+        <!-- GDPR Privacy Notice -->
+        <div class="gdpr-notice">
+            <h3>Data Protection & Privacy Notice</h3>
+            <p>Your personal data is being collected in accordance with UK GDPR and Data Protection Act 2018. This data is required to:</p>
+            <ul>
+                <li>Verify your suitability to work with children and vulnerable individuals</li>
+                <li>Ensure safeguarding compliance and DBS clearance</li>
+                <li>Track qualifications, training, and professional development</li>
+                <li>Manage employment contracts and right-to-work verification</li>
+                <li>Comply with Ofsted and regulatory requirements</li>
+            </ul>
+            <p><strong>Your data will be stored securely and only accessed by authorized personnel.</strong></p>
+            <p>For full details, please refer to our <a href="/privacy-policy" target="_blank">Privacy Policy</a>.</p>
+            <div class="form-check mb-3">
+                <InputCheckbox id="privacyAcknowledged" @bind-Value="model.PrivacyNoticeAcknowledged" class="form-check-input" />
+                <label class="form-check-label" for="privacyAcknowledged">
+                    I acknowledge the privacy notice and consent to data processing
+                </label>
+                <ValidationMessage For="@(() => model.PrivacyNoticeAcknowledged)" />
+            </div>
+        </div>
+
+        <!-- Personal Details Section -->
+        <fieldset class="form-section">
+            <legend>Personal Details</legend>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="firstName">First Name *</label>
+                    <InputText id="firstName" @bind-Value="model.FirstName" class="form-control" />
+                    <ValidationMessage For="@(() => model.FirstName)" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="lastName">Last Name *</label>
+                    <InputText id="lastName" @bind-Value="model.LastName" class="form-control" />
+                    <ValidationMessage For="@(() => model.LastName)" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="dob">Date of Birth *</label>
+                    <InputDate id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
+                    <ValidationMessage For="@(() => model.DateOfBirth)" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="gender">Gender</label>
+                    <InputSelect id="gender" @bind-Value="model.Gender" class="form-control">
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                        <option value="Prefer Not to Say">Prefer Not to Say</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="email">Email Address *</label>
+                    <InputText id="email" @bind-Value="model.Email" class="form-control" type="email" />
+                    <ValidationMessage For="@(() => model.Email)" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="phone">Phone Number *</label>
+                    <InputText id="phone" @bind-Value="model.Phone" class="form-control" type="tel" />
+                    <ValidationMessage For="@(() => model.Phone)" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="address">Address</label>
+                <InputTextArea id="address" @bind-Value="model.Address" class="form-control" rows="2" />
+            </div>
+        </fieldset>
+
+        <!-- Qualifications & Experience Section -->
+        <fieldset class="form-section">
+            <legend>Qualifications & Teaching Experience</legend>
+
+            <div class="form-group">
+                <label for="highestQualification">Highest Qualification *</label>
+                <InputText id="highestQualification" @bind-Value="model.HighestQualification" class="form-control"
+                    placeholder="e.g., Bachelor's Degree in Education, PGCE, etc." />
+                <ValidationMessage For="@(() => model.HighestQualification)" />
+            </div>
+
+            <div class="form-group">
+                <label for="otherQualifications">Other Relevant Qualifications</label>
+                <InputTextArea id="otherQualifications" @bind-Value="model.OtherQualifications" class="form-control"
+                    placeholder="List any other teaching or subject-specific qualifications" rows="3" />
+            </div>
+
+            <div class="form-group">
+                <label for="teachingExperience">Teaching Experience *</label>
+                <InputTextArea id="teachingExperience" @bind-Value="model.TeachingExperience" class="form-control"
+                    placeholder="Describe your teaching experience, including subjects taught and age groups" rows="4" />
+                <ValidationMessage For="@(() => model.TeachingExperience)" />
+            </div>
+
+            <div class="form-group">
+                <label for="coursesToBeTaken">Courses to be Taken</label>
+                <InputTextArea id="coursesToBeTaken" @bind-Value="model.CoursesToBeTaken" class="form-control"
+                    placeholder="List tutor courses to be completed, separated by commas if multiple" rows="2" />
+                <ValidationMessage For="@(() => model.CoursesToBeTaken)" />
+            </div>
+
+            <div class="form-group">
+                <label for="availableDays">Available Days</label>
+                <InputText id="availableDays" @bind-Value="model.AvailableDays" class="form-control"
+                    placeholder="e.g., Mon, Tue, Wed" />
+                <ValidationMessage For="@(() => model.AvailableDays)" />
+            </div>
+
+            <div class="form-group">
+                <label for="courseDuration">Course Duration</label>
+                <InputText id="courseDuration" @bind-Value="model.CourseDuration" class="form-control"
+                    placeholder="e.g., 12 weeks, 40 hours" />
+                <ValidationMessage For="@(() => model.CourseDuration)" />
+            </div>
+        </fieldset>
+
+        <!-- References Section -->
+        <fieldset class="form-section">
+            <legend>Professional References</legend>
+
+            <div class="reference-section">
+                <h5>Reference 1 *</h5>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="ref1Name">Reference Name *</label>
+                        <InputText id="ref1Name" @bind-Value="model.Reference1Name" class="form-control" />
+                        <ValidationMessage For="@(() => model.Reference1Name)" />
+                    </div>
+
+                    <div class="form-group col-md-6">
+                        <label for="ref1Contact">Contact Details *</label>
+                        <InputText id="ref1Contact" @bind-Value="model.Reference1Contact" class="form-control"
+                            placeholder="Email or phone number" />
+                        <ValidationMessage For="@(() => model.Reference1Contact)" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="reference-section">
+                <h5>Reference 2 (Optional)</h5>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="ref2Name">Reference Name</label>
+                        <InputText id="ref2Name" @bind-Value="model.Reference2Name" class="form-control" />
+                    </div>
+
+                    <div class="form-group col-md-6">
+                        <label for="ref2Contact">Contact Details</label>
+                        <InputText id="ref2Contact" @bind-Value="model.Reference2Contact" class="form-control"
+                            placeholder="Email or phone number" />
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- DBS Check Section -->
+        <fieldset class="form-section dbs-section">
+            <legend>DBS Check & Clearance</legend>
+
+            <div class="form-group">
+                <label for="dbsStatus">DBS Check Status *</label>
+                <InputSelect id="dbsStatus" @bind-Value="model.DBSStatus" class="form-control">
+                    <option value="">Select Status</option>
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Enhanced">Enhanced Check Required</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.DBSStatus)" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="dbsNumber">DBS Certificate Number</label>
+                    <InputText id="dbsNumber" @bind-Value="model.DBSCertificateNumber" class="form-control" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="dbsType">DBS Check Type</label>
+                    <InputSelect id="dbsType" @bind-Value="model.DBSCheckType" class="form-control">
+                        <option value="">Select Type</option>
+                        <option value="Basic">Basic</option>
+                        <option value="Standard">Standard</option>
+                        <option value="Enhanced">Enhanced</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="dbsIssueDate">Issue Date</label>
+                    <InputDate id="dbsIssueDate" @bind-Value="model.DBSIssueDate" class="form-control" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="dbsExpiryDate">Expiry Date</label>
+                    <InputDate id="dbsExpiryDate" @bind-Value="model.DBSExpiryDate" class="form-control" />
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Right to Work Section -->
+        <fieldset class="form-section">
+            <legend>Right to Work Verification</legend>
+
+            <div class="form-group">
+                <label for="rightToWorkStatus">Right to Work Status *</label>
+                <InputSelect id="rightToWorkStatus" @bind-Value="model.RightToWorkStatus" class="form-control">
+                    <option value="">Select Status</option>
+                    <option value="UK Citizen">UK Citizen</option>
+                    <option value="EU Citizen">EU Citizen</option>
+                    <option value="Visa">Work Visa</option>
+                    <option value="ILR">Indefinite Leave to Remain</option>
+                    <option value="Other">Other</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.RightToWorkStatus)" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="visaType">Visa Type (if applicable)</label>
+                    <InputText id="visaType" @bind-Value="model.VisaType" class="form-control" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="visaExpiry">Visa Expiry Date</label>
+                    <InputDate id="visaExpiry" @bind-Value="model.VisaExpiryDate" class="form-control" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="passportNumber">Passport Number</label>
+                <InputText id="passportNumber" @bind-Value="model.PassportNumber" class="form-control" />
+            </div>
+        </fieldset>
+
+        <!-- Safeguarding Training Section -->
+        <fieldset class="form-section">
+            <legend>Safeguarding Training</legend>
+
+            <div class="form-group">
+                <label for="safeguardingStatus">Safeguarding Training Status *</label>
+                <InputSelect id="safeguardingStatus" @bind-Value="model.SafeguardingTrainingStatus" class="form-control">
+                    <option value="">Select Status</option>
+                    <option value="Not Completed">Not Completed</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Expired">Expired (Needs Renewal)</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.SafeguardingTrainingStatus)" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="trainingDate">Training Completion Date</label>
+                    <InputDate id="trainingDate" @bind-Value="model.SafeguardingTrainingDate" class="form-control" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="trainingExpiry">Training Expiry Date</label>
+                    <InputDate id="trainingExpiry" @bind-Value="model.SafeguardingTrainingExpiry" class="form-control" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="trainingProvider">Training Provider</label>
+                <InputText id="trainingProvider" @bind-Value="model.TrainingProvider" class="form-control"
+                    placeholder="e.g., NSPCC, Local Authority, etc." />
+            </div>
+        </fieldset>
+
+        <!-- Contract Details Section -->
+        <fieldset class="form-section">
+            <legend>Contract & Employment Details</legend>
+
+            <div class="form-group">
+                <label for="contractType">Contract Type *</label>
+                <InputSelect id="contractType" @bind-Value="model.ContractType" class="form-control">
+                    <option value="">Select Contract Type</option>
+                    <option value="Permanent">Permanent</option>
+                    <option value="Fixed Term">Fixed Term</option>
+                    <option value="Casual">Casual</option>
+                    <option value="Self Employed">Self Employed</option>
+                    <option value="Agency">Agency</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.ContractType)" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="contractStart">Contract Start Date</label>
+                    <InputDate id="contractStart" @bind-Value="model.ContractStartDate" class="form-control" />
+                </div>
+
+                <div class="form-group col-md-6">
+                    <label for="contractEnd">Contract End Date</label>
+                    <InputDate id="contractEnd" @bind-Value="model.ContractEndDate" class="form-control" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="contractTerms">Contract Terms & Conditions</label>
+                <InputTextArea id="contractTerms" @bind-Value="model.ContractTerms" class="form-control"
+                    placeholder="Key terms, working hours, pay rate, etc." rows="3" />
+            </div>
+        </fieldset>
+
+        <!-- Consent Management Section -->
+        <fieldset class="form-section consent-section">
+            <legend>Consent & Permissions</legend>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="dataProcessing" @bind-Value="model.ConsentDataProcessing" class="form-check-input" />
+                <label class="form-check-label" for="dataProcessing">
+                    I consent to the processing of my personal data for employment and compliance purposes *
+                </label>
+                <ValidationMessage For="@(() => model.ConsentDataProcessing)" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="dbsCheck" @bind-Value="model.ConsentDBSCheck" class="form-check-input" />
+                <label class="form-check-label" for="dbsCheck">
+                    I consent to DBS checks and verification of my criminal record *
+                </label>
+                <ValidationMessage For="@(() => model.ConsentDBSCheck)" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="references" @bind-Value="model.ConsentReferences" class="form-check-input" />
+                <label class="form-check-label" for="references">
+                    I consent to reference checks being conducted with my nominated referees *
+                </label>
+                <ValidationMessage For="@(() => model.ConsentReferences)" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox id="marketing" @bind-Value="model.ConsentMarketing" class="form-check-input" />
+                <label class="form-check-label" for="marketing">
+                    I consent to receiving marketing communications about training and employment opportunities
+                </label>
+            </div>
+        </fieldset>
+
+        <!-- Declaration -->
+        <fieldset class="form-section declaration-section">
+            <legend>Declaration</legend>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <InputCheckbox id="declaration" @bind-Value="model.DeclarationConfirmed" class="form-check-input" />
+                    <label class="form-check-label" for="declaration">
+                        I confirm that the information provided is accurate and complete to the best of my knowledge.
+                        I understand that false information may result in termination of employment or services. *
+                    </label>
+                    <ValidationMessage For="@(() => model.DeclarationConfirmed)" />
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-outline-primary" @onclick="SaveDraftAsync" disabled="@isSubmitting">
+                Save and Continue Later
+            </button>
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                @(isSubmitting ? "Submitting..." : "Submit Tutor Onboarding")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private const string DraftStorageKey = "onboarding:tutor:draft";
+
+    private TutorOnboardingModel model = new();
+    private string? successMessage = null;
+    private string? errorMessage = null;
+    private bool isSubmitting;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await RestoreDraftAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        try
+        {
+            var missingRequiredDeclarations = GetMissingRequiredDeclarations();
+            if (missingRequiredDeclarations.Count > 0)
+            {
+                errorMessage = BuildMissingRequirementsMessage(missingRequiredDeclarations);
+                successMessage = null;
+                return;
+            }
+
+            var result = await OnboardingService.SaveOnboardingAsync(model);
+
+            if (result.Success)
+            {
+                successMessage = "Tutor onboarding submitted successfully! An administrator will review and confirm your submission.";
+                errorMessage = null;
+                model = new();
+                await JS.InvokeVoidAsync("onboardingDrafts.clear", DraftStorageKey);
+            }
+            else
+            {
+                errorMessage = result.Errors.Count > 0
+                    ? result.Errors[0]
+                    : result.Message ?? "Failed to submit the tutor onboarding form.";
+                successMessage = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error submitting onboarding: {ex.Message}";
+            successMessage = null;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void CancelForm()
+    {
+        // Since this is the dashboard, navigate to home
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        try
+        {
+            ClearMessages();
+
+            var payload = JsonSerializer.Serialize(model);
+            await JS.InvokeVoidAsync("onboardingDrafts.save", DraftStorageKey, payload);
+            successMessage = "Draft saved. You can continue this onboarding later on this device.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving draft: {ex.Message}";
+        }
+    }
+
+    private async Task RestoreDraftAsync()
+    {
+        try
+        {
+            var payload = await JS.InvokeAsync<string?>("onboardingDrafts.load", DraftStorageKey);
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return;
+            }
+
+            var restored = JsonSerializer.Deserialize<TutorOnboardingModel>(payload);
+            if (restored is null)
+            {
+                return;
+            }
+
+            model = restored;
+            successMessage = "Saved draft restored. You can continue where you left off.";
+            StateHasChanged();
+        }
+        catch
+        {
+            // Ignore draft restoration issues to avoid blocking form usage.
+        }
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private List<string> GetMissingRequiredDeclarations()
+    {
+        var missing = new List<string>();
+
+        if (model.DateOfBirth == default)
+            missing.Add("Date of birth");
+
+        if (!model.PrivacyNoticeAcknowledged)
+            missing.Add("Privacy notice acknowledgement");
+
+        if (!model.ConsentDataProcessing)
+            missing.Add("Data processing consent");
+
+        if (!model.ConsentDBSCheck)
+            missing.Add("DBS check consent");
+
+        if (!model.ConsentReferences)
+            missing.Add("Reference check consent");
+
+        if (!model.DeclarationConfirmed)
+            missing.Add("Declaration confirmation");
+
+        return missing;
+    }
+
+    private static string BuildMissingRequirementsMessage(List<string> missingRequiredDeclarations)
+    {
+        var messageBuilder = new StringBuilder("Please complete the following required fields: ");
+        messageBuilder.Append(string.Join(", ", missingRequiredDeclarations));
+        messageBuilder.Append('.');
+        return messageBuilder.ToString();
+    }
+}

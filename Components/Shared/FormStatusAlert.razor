@@ -1,0 +1,33 @@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="alert @AlertClass alert-dismissible fade show" role="alert" style="border-left: 5px solid @BorderColor; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        @if (!string.IsNullOrWhiteSpace(Title))
+        {
+            <h4 class="alert-heading mb-2">@Title</h4>
+        }
+        <p class="mb-0">@Message</p>
+        <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string Type { get; set; } = "success";
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string AlertClass => string.Equals(Type, "error", StringComparison.OrdinalIgnoreCase)
+        ? "alert-danger"
+        : "alert-success";
+
+    private string BorderColor => string.Equals(Type, "error", StringComparison.OrdinalIgnoreCase)
+        ? "#dc3545"
+        : "#28a745";
+}
