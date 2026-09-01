@@ -33,7 +33,7 @@
             <div class="alert alert-danger">@errorMessage</div>
         }
 
-        <div class="admin-card" style="max-width: 520px; margin: 0 auto;">
+        <div class="admin-card admin-access-card">
             <h2>Administrator Login</h2>
             <p>Use your centre administrator credentials to continue.</p>
             <div class="mb-3">
@@ -58,6 +58,45 @@
             <div class="text-center">
                 <a href="/password-reset-request" class="btn btn-link btn-sm">Forgot Password?</a>
             </div>
+            <div class="border-top mt-3 pt-3 text-center">
+                <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSignUp">
+                    @(showSignUp ? "Cancel Sign Up" : "Create Administrator Account")
+                </button>
+            </div>
+
+            @if (showSignUp)
+            {
+                <div class="border-top mt-3 pt-3">
+                    <h3 class="h5">Administrator Sign Up</h3>
+                    <p class="mb-3">Create your centre administrator account.</p>
+                    <div class="admin-signup-fields">
+                        <div>
+                            <label class="form-label">Full Name</label>
+                            <InputText class="form-control" @bind-Value="signUpFullName" />
+                        </div>
+                        <div>
+                            <label class="form-label">Email</label>
+                            <InputText type="email" class="form-control" @bind-Value="signUpEmail" />
+                        </div>
+                        <div>
+                            <label class="form-label">Username</label>
+                            <InputText class="form-control" @bind-Value="signUpUsername" />
+                        </div>
+                        <div>
+                            <label class="form-label">Password</label>
+                            <InputText type="password" class="form-control" @bind-Value="signUpPassword" />
+                            <div class="form-text">Use at least 8 characters.</div>
+                        </div>
+                        <div>
+                            <label class="form-label">Confirm Password</label>
+                            <InputText type="password" class="form-control" @bind-Value="signUpPasswordConfirmation" />
+                        </div>
+                    </div>
+                    <button class="btn btn-primary w-100" @onclick="SignUpAsync" disabled="@(isSigningUp)">
+                        @(isSigningUp ? "Creating Account..." : "Create Account")
+                    </button>
+                </div>
+            }
         </div>
     }
     else
@@ -1337,6 +1376,13 @@
     private string? errorMessage;
     private string? onboardingSuccessMessage;
     private bool isLoggingIn = false;
+    private bool showSignUp;
+    private bool isSigningUp;
+    private string? signUpFullName;
+    private string? signUpEmail;
+    private string? signUpUsername;
+    private string? signUpPassword;
+    private string? signUpPasswordConfirmation;
     private List<StudentOnboardingData> allStudents = new();
     private List<TutorOnboardingData> allTutors = new();
     private List<CarerOnboardingData> allCarers = new();
@@ -1541,6 +1587,77 @@
         finally
         {
             isLoggingIn = false;
+        }
+    }
+
+    private void ToggleSignUp()
+    {
+        showSignUp = !showSignUp;
+        errorMessage = null;
+    }
+
+    private async Task SignUpAsync()
+    {
+        errorMessage = null;
+
+        if (!string.Equals(signUpPassword, signUpPasswordConfirmation, StringComparison.Ordinal))
+        {
+            errorMessage = "Password confirmation does not match.";
+            return;
+        }
+
+        isSigningUp = true;
+
+        try
+        {
+            var (success, message) = await AdminAccess.CreateAdminAccountAsync(
+                signUpUsername ?? string.Empty,
+                signUpPassword ?? string.Empty,
+                signUpEmail ?? string.Empty,
+                signUpFullName ?? string.Empty);
+
+            if (!success)
+            {
+                errorMessage = message;
+                return;
+            }
+
+            var admin = await AdminAccess.GetAdminByUsernameAsync(signUpUsername ?? string.Empty);
+            if (admin == null)
+            {
+                errorMessage = "Your account was created, but sign in could not be completed. Please sign in manually.";
+                return;
+            }
+
+            AdminSession.SignIn(admin.Username, admin.Id, admin.Email, admin.FullName);
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "CentreAdminAccountCreated",
+                pagePath: "/centre-administrators",
+                actorRole: "CentreAdmin",
+                actorUsername: admin.Username,
+                success: true,
+                details: "Centre administrator account created through sign up.");
+
+            signUpPassword = null;
+            signUpPasswordConfirmation = null;
+            await LoadPendingSubmissionsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred while creating the account. Please try again.";
+            await AuditLog.LogAsync(
+                eventType: "Security",
+                action: "CentreAdminAccountCreationError",
+                pagePath: "/centre-administrators",
+                actorRole: "CentreAdmin",
+                actorUsername: signUpUsername,
+                success: false,
+                details: $"Account creation error: {ex.Message}");
+        }
+        finally
+        {
+            isSigningUp = false;
         }
     }
 

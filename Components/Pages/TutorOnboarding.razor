@@ -141,14 +141,14 @@
             </div>
 
             <div class="form-group">
-                <label for="availableDays">Available Days</label>
+                <label for="availableDays">Tutor's Availability Days</label>
                 <InputText id="availableDays" @bind-Value="model.AvailableDays" class="form-control"
                     placeholder="e.g., Mon, Tue, Wed" />
                 <ValidationMessage For="@(() => model.AvailableDays)" />
             </div>
 
             <div class="form-group">
-                <label for="courseDuration">Course Duration</label>
+                <label for="courseDuration">Tutor's Weekly Available Hours</label>
                 <InputText id="courseDuration" @bind-Value="model.CourseDuration" class="form-control"
                     placeholder="e.g., 12 weeks, 40 hours" />
                 <ValidationMessage For="@(() => model.CourseDuration)" />
