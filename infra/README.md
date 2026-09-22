@@ -17,7 +17,7 @@ Install the Azure PowerShell modules and Bicep CLI, then run:
 .\infra\deploy-test.ps1 -Location uksouth
 ```
 
-Authentication uses Microsoft's device login. The database password is requested as a secure value and is not stored in this repository.
+Authentication uses Microsoft Azure PowerShell. By default, the script generates the database password cryptographically in memory and does not print or persist it. An existing secure value can be supplied with `-DatabaseAdminPassword` when direct database administration is required.
 
 The database permits connections from Azure services so the Free App Service can connect without paid private networking. This is suitable only for a temporary test environment. Use private endpoints and tighter networking for production.
 
