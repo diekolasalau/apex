@@ -108,6 +108,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
           value: 'false'
         }
         {
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'false'
+        }
+        {
           name: 'ConnectionStrings__DefaultConnection'
           value: 'Host=${databaseServer.properties.fullyQualifiedDomainName};Port=5432;Database=${databaseName};Username=${databaseAdminUsername};Password=${databaseAdminPassword};SSL Mode=Require;Trust Server Certificate=true'
         }

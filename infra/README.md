@@ -21,4 +21,10 @@ Authentication uses Microsoft Azure PowerShell. By default, the script generates
 
 The database permits connections from Azure services so the Free App Service can connect without paid private networking. This is suitable only for a temporary test environment. Use private endpoints and tighter networking for production.
 
-The deployment creates infrastructure and application configuration. Publish the application separately after deployment.
+The deployment creates infrastructure and application configuration. Publish the application directly to App Service with:
+
+```powershell
+.\infra\deploy-app.ps1 -WebAppName studymgt-test-app-g6ow5r6bjpgiy
+```
+
+This script publishes a compact Release build, uploads each runtime file through the authenticated App Service VFS API, and restarts the Web App. It avoids GitHub credentials, publish-profile files, and server-side Oryx builds. Publishing credentials remain in memory and are not printed or persisted.
