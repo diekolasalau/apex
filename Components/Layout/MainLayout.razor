@@ -166,7 +166,14 @@
             // Timeout logging is best effort.
         }
 
-        Navigation.NavigateTo("/", forceLoad: true);
+        try
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Circuit may already be disconnected; ignore navigation after a dropped session.
+        }
     }
 
     public void Dispose()

@@ -203,7 +203,7 @@
                                             <InputText class="form-control" @bind-Value="student.StudentLastName" />
                                         </td>
                                         <td>
-                                            <InputDate class="form-control" @bind-Value="student.StudentDateOfBirth" />
+                                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="student.StudentDateOfBirth" />
                                         </td>
                                         <td>
                                             <InputText class="form-control" @bind-Value="student.Relationship" />
@@ -259,11 +259,11 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Start Date</label>
-                            <InputDate class="form-control" @bind-Value="studentTimeOffStartDate" />
+                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="studentTimeOffStartDate" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">End Date</label>
-                            <InputDate class="form-control" @bind-Value="studentTimeOffEndDate" />
+                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="studentTimeOffEndDate" />
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button class="btn btn-primary w-100" @onclick="SubmitStudentTimeOffBookingAsync" disabled="@isStudentTimeOffSubmitting">

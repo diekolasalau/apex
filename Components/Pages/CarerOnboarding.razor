@@ -148,7 +148,7 @@
                     <div class="row g-3 mt-2">
                         <div class="col-md-6">
                             <label for="studentDOB" class="form-label">Student Date of Birth <span class="text-danger">*</span></label>
-                            <InputDate id="studentDOB" @bind-Value="@model.StudentDateOfBirth" class="form-control" />
+                            <InputDate Type="InputDateType.Date" id="studentDOB" @bind-Value="@model.StudentDateOfBirth" class="form-control" />
                             <ValidationMessage For="@(() => model.StudentDateOfBirth)" class="invalid-feedback d-block" />
                         </div>
                         <div class="col-md-6">

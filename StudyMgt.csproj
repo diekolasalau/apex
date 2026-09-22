@@ -23,4 +23,8 @@
     <PackageReference Include="QuestPDF" Version="2024.3.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Components/Pages/AssignmentManagement.razor" />
+  </ItemGroup>
+
 </Project>

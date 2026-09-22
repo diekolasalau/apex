@@ -285,11 +285,11 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Start Date</label>
-                            <InputDate class="form-control" @bind-Value="timeOffStartDate" />
+                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="timeOffStartDate" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">End Date</label>
-                            <InputDate class="form-control" @bind-Value="timeOffEndDate" />
+                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="timeOffEndDate" />
                         </div>
                         <div class="col-md-3 d-flex align-items-end">
                             <button class="btn btn-primary w-100" @onclick="SubmitTimeOffBookingAsync" disabled="@isTimeOffSubmitting">

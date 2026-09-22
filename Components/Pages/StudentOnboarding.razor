@@ -76,7 +76,7 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="dob">Date of Birth *</label>
-                    <InputDate id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
                     <ValidationMessage For="@(() => model.DateOfBirth)" />
                 </div>
 

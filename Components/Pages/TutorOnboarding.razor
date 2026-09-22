@@ -73,7 +73,7 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="dob">Date of Birth *</label>
-                    <InputDate id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="dob" @bind-Value="model.DateOfBirth" class="form-control" />
                     <ValidationMessage For="@(() => model.DateOfBirth)" />
                 </div>
 
@@ -230,12 +230,12 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="dbsIssueDate">Issue Date</label>
-                    <InputDate id="dbsIssueDate" @bind-Value="model.DBSIssueDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="dbsIssueDate" @bind-Value="model.DBSIssueDate" class="form-control" />
                 </div>
 
                 <div class="form-group col-md-6">
                     <label for="dbsExpiryDate">Expiry Date</label>
-                    <InputDate id="dbsExpiryDate" @bind-Value="model.DBSExpiryDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="dbsExpiryDate" @bind-Value="model.DBSExpiryDate" class="form-control" />
                 </div>
             </div>
         </fieldset>
@@ -265,7 +265,7 @@
 
                 <div class="form-group col-md-6">
                     <label for="visaExpiry">Visa Expiry Date</label>
-                    <InputDate id="visaExpiry" @bind-Value="model.VisaExpiryDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="visaExpiry" @bind-Value="model.VisaExpiryDate" class="form-control" />
                 </div>
             </div>
 
@@ -294,12 +294,12 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="trainingDate">Training Completion Date</label>
-                    <InputDate id="trainingDate" @bind-Value="model.SafeguardingTrainingDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="trainingDate" @bind-Value="model.SafeguardingTrainingDate" class="form-control" />
                 </div>
 
                 <div class="form-group col-md-6">
                     <label for="trainingExpiry">Training Expiry Date</label>
-                    <InputDate id="trainingExpiry" @bind-Value="model.SafeguardingTrainingExpiry" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="trainingExpiry" @bind-Value="model.SafeguardingTrainingExpiry" class="form-control" />
                 </div>
             </div>
 
@@ -330,12 +330,12 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="contractStart">Contract Start Date</label>
-                    <InputDate id="contractStart" @bind-Value="model.ContractStartDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="contractStart" @bind-Value="model.ContractStartDate" class="form-control" />
                 </div>
 
                 <div class="form-group col-md-6">
                     <label for="contractEnd">Contract End Date</label>
-                    <InputDate id="contractEnd" @bind-Value="model.ContractEndDate" class="form-control" />
+                    <InputDate Type="InputDateType.Date" id="contractEnd" @bind-Value="model.ContractEndDate" class="form-control" />
                 </div>
             </div>
 

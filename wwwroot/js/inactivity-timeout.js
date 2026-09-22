@@ -28,9 +28,18 @@ window.screenInactivity = (function () {
     }
 
     timeoutId = setTimeout(() => {
-      if (dotNetRef) {
-        dotNetRef.invokeMethodAsync("HandleInactivityTimeout");
+      if (!active || !dotNetRef) {
+        return;
       }
+
+      Promise.resolve()
+        .then(() => dotNetRef.invokeMethodAsync("HandleInactivityTimeout"))
+        .catch((error) => {
+          console.warn("Inactivity timeout handler could not be invoked.", error);
+          active = false;
+          clearTimer();
+          dotNetRef = null;
+        });
     }, timeoutMs);
   }
 

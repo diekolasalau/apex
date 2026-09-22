@@ -1,0 +1,22 @@
+@page "/assignment-management"
+@using StudyMgt.Services
+@using StudyMgt.Data.Entities
+@inject StudentOnboardingService StudentService
+@inject TutorOnboardingService TutorService
+@inject CentreAdminSession AdminSession
+@inject NavigationManager Navigation
+
+<PageTitle>Assignment Management</PageTitle>
+
+<div class="container mt-4">
+    <h1>Assignment Management</h1>
+    <p class="text-muted">This module is now reachable.</p>
+    <button class="btn btn-outline-secondary" @onclick="GoToDashboard">Back to Dashboard</button>
+</div>
+
+@code {
+    private void GoToDashboard()
+    {
+        Navigation.NavigateTo("/centre-administrators");
+    }
+}

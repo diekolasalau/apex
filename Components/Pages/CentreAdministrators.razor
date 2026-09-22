@@ -158,6 +158,12 @@
             </div>
 
             <div class="admin-card">
+                <h2>Assignment Management</h2>
+                <p>Assign approved tutors to approved students from a dedicated centre-administrator module.</p>
+                <button class="btn btn-primary" @onclick="NavigateToAssignmentManagement">Open Assignment Module</button>
+            </div>
+
+            <div class="admin-card">
                 <h2>Reports & Attendance</h2>
                 <p>Generate progress reports, attendance summaries, and SEN support plans for review by staff and parents.</p>
                 <button class="btn btn-secondary" @onclick="NavigateToReportsAsync">View Reports</button>
@@ -357,11 +363,11 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label">From Date (UTC)</label>
-                                <InputDate class="form-control form-control-sm" @bind-Value="filterFromDate" />
+                                <InputDate Type="InputDateType.Date" class="form-control form-control-sm" @bind-Value="filterFromDate" />
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label">To Date (UTC)</label>
-                                <InputDate class="form-control form-control-sm" @bind-Value="filterToDate" />
+                                <InputDate Type="InputDateType.Date" class="form-control form-control-sm" @bind-Value="filterToDate" />
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFiltersAsync">Apply Filters</button>
@@ -484,7 +490,7 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Date Of Birth</label>
-                                            <InputDate class="form-control" @bind-Value="studentEdit.DateOfBirth" />
+                                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="studentEdit.DateOfBirth" />
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Gender</label>
@@ -551,7 +557,7 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Date Of Birth</label>
-                                            <InputDate class="form-control" @bind-Value="tutorEdit.DateOfBirth" />
+                                            <InputDate Type="InputDateType.Date" class="form-control" @bind-Value="tutorEdit.DateOfBirth" />
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Gender</label>
@@ -2481,6 +2487,17 @@
         }
 
         Navigation.NavigateTo("/audit-logs");
+    }
+
+    private void NavigateToAssignmentManagement()
+    {
+        if (!AdminSession.IsAuthenticated)
+        {
+            errorMessage = "Sign in as centre administrator to access assignment management.";
+            return;
+        }
+
+        Navigation.NavigateTo("/assignment-management");
     }
 
     private async Task NavigateToReportsAsync()
